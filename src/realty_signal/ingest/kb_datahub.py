@@ -38,6 +38,10 @@ _TREND = {
 # 증감률(prcIndxInxrdcRt) 매매전세코드 → metric  (매물종별 01=아파트)
 _CHANGE = {"01": "sale_change", "02": "jeonse_change"}
 
+# 수도권 시군구 확장 대상(지역코드) — 증감률만 드릴다운 가능(매수우위/전세수급은 광역만).
+# 나머지 지방은 24개 광역 단위 현상유지.
+_SUDOGWON = {"1100000000": "서울", "4100000000": "경기", "2800000000": "인천"}
+
 
 def _get(path: str, params: dict) -> dict:
     url = _BASE + path + "?" + urllib.parse.urlencode(params)
@@ -50,10 +54,31 @@ def _get(path: str, params: dict) -> dict:
     return db["data"]
 
 
-def fetch() -> KBWeekly:
-    """KB 데이터허브에서 최신 주간 지표를 받아 KBWeekly 로 반환."""
+def _change_rows(매매전세코드: str, metric: str, 지역코드: str | None = None) -> list[tuple]:
+    """증감률 엔드포인트 → rows. 지역코드 지정 시 해당 광역의 시군구로 드릴다운."""
+    params = {"월간주간구분코드": _WEEKLY, "매물종별구분": "01", "매매전세코드": 매매전세코드}
+    if 지역코드:
+        params["지역코드"] = 지역코드
+    data = _get("prcIndxInxrdcRt", params)
+    dates = [_parse_date(s) for s in data["날짜리스트"]]
+    rows = []
+    for rec in data["데이터리스트"]:
+        region = rec["지역명"]
+        for i, v in enumerate(rec["dataList"]):
+            if v is not None and i < len(dates):
+                rows.append((dates[i], region, metric, float(v)))
+    return rows
+
+
+def fetch(expand_sudogwon: bool = True) -> KBWeekly:
+    """KB 데이터허브에서 최신 주간 지표를 받아 KBWeekly 로 반환.
+
+    expand_sudogwon=True 면 수도권(서울·경기·인천)을 시군구 단위로 추가 수집
+    (증감률만; 매수우위/전세수급은 광역 단위라 구단위 미제공).
+    """
     rows: list[tuple] = []
 
+    # 24개 광역: 매수우위지수·매수세우위·전세수급지수
     for menu, key_map in _TREND.items():
         data = _get("maktTrnd", {"메뉴코드": menu, "월간주간구분코드": _WEEKLY})
         for rec in data["데이터리스트"]:
@@ -65,17 +90,17 @@ def fetch() -> KBWeekly:
                     if v is not None:
                         rows.append((date, region, metric, float(v)))
 
+    # 24개 광역: 매매·전세 증감률
     for code, metric in _CHANGE.items():
-        data = _get(
-            "prcIndxInxrdcRt",
-            {"월간주간구분코드": _WEEKLY, "매물종별구분": "01", "매매전세코드": code},
-        )
-        dates = [_parse_date(s) for s in data["날짜리스트"]]
-        for rec in data["데이터리스트"]:
-            region = rec["지역명"]
-            for i, v in enumerate(rec["dataList"]):
-                if v is not None and i < len(dates):
-                    rows.append((dates[i], region, metric, float(v)))
+        rows += _change_rows(code, metric)
+
+    # 수도권 시군구 증감률 드릴다운
+    if expand_sudogwon:
+        for 지역코드 in _SUDOGWON:
+            for code, metric in _CHANGE.items():
+                rows += _change_rows(code, metric, 지역코드)
 
     long = pd.DataFrame(rows, columns=["date", "region", "metric", "value"])
+    # 시군구가 광역과 이름이 겹치지 않으나, 혹시 모를 중복(date·region·metric) 제거
+    long = long.drop_duplicates(subset=["date", "region", "metric"], keep="last")
     return KBWeekly(long=long)
