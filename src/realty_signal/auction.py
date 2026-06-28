@@ -172,7 +172,8 @@ def remove(listing_id: str) -> None:
 
 
 def _norm(s: str) -> str:
-    return (s or "").replace("아파트", "").replace(" ", "").strip()
+    # 한글·숫자만 남김 (공백·괄호·특수문자·'아파트' 표기차 제거)
+    return re.sub(r"[^가-힣0-9]", "", (s or "").replace("아파트", ""))
 
 
 def _recent_yms(n: int = 6) -> list[str]:
@@ -220,6 +221,39 @@ def recent_trade_price(lawd5: str, dong: str, core: str, area: float, key: str) 
     return best[1] if best else None
 
 
+def recent_jeonse_price(lawd5: str, dong: str, core: str, area: float, key: str) -> float | None:
+    """국토부 전월세 실거래에서 동일단지 최근 전세(월세=0) 보증금(만원). API 미활성 시 None."""
+    base = "https://apis.data.go.kr/1613000/RTMSDataSvcAptRent/getRTMSDataSvcAptRent"
+    best, cn = None, _norm(core)
+    for ym in _recent_yms(6):
+        url = f"{base}?serviceKey={key}&LAWD_CD={lawd5}&DEAL_YMD={ym}&numOfRows=900&pageNo=1"
+        try:
+            root = ET.fromstring(urllib.request.urlopen(  # noqa: S310
+                urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=30).read())
+        except Exception:
+            continue
+        for it in root.iter("item"):
+            if (it.findtext("monthlyRent") or "0").replace(",", "").strip() not in ("0", ""):
+                continue  # 전세만 (월세 0)
+            umd = (it.findtext("umdNm") or "").strip()
+            if dong and umd and dong not in umd and umd not in dong:
+                continue
+            an = _norm(it.findtext("aptNm") or "")
+            if not (an == cn or (cn and (cn in an or an in cn))):
+                continue
+            try:
+                ar = float(it.findtext("excluUseAr"))
+                if area and abs(ar - area) / area > 0.15:
+                    continue
+                dep = float((it.findtext("deposit") or "").replace(",", "").strip())
+                d = (int(it.findtext("dealYear")), int(it.findtext("dealMonth")), int(it.findtext("dealDay")))
+            except (ValueError, AttributeError, TypeError):
+                continue
+            if best is None or d > best[0]:
+                best = (d, dep)
+    return best[1] if best else None
+
+
 def update_market(codes: dict, key: str) -> int:
     """등록 매물의 최근 실거래가를 국토부에서 조회해 채운다. 갱신 건수 반환."""
     listings = load()
@@ -230,11 +264,14 @@ def update_market(codes: dict, key: str) -> int:
             continue
         dong_m = re.search(r"([가-힣]+동)", lst.메모 or "")
         dong = dong_m.group(1) if dong_m else ""
-        core = re.sub(r"\(.*?\)", "", lst.단지명)
-        price = recent_trade_price(code[:5], dong, core, lst.전용면적, key)
+        # 괄호 안 별칭(예: '(별내포스코더샵)')도 매칭에 쓰이도록 전체 단지명 사용
+        price = recent_trade_price(code[:5], dong, lst.단지명, lst.전용면적, key)
         if price:
             lst.최근실거래가 = price
             n += 1
+        jeonse = recent_jeonse_price(code[:5], dong, lst.단지명, lst.전용면적, key)  # 전월세 API 활성 시
+        if jeonse:
+            lst.최근전세가 = jeonse
     save(listings)
     return n
 
