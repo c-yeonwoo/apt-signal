@@ -1,0 +1,9 @@
+# Render.com 배포 설정 (https://render.com)
+# 레포 연결 후 자동 인식. KB 데이터허브 수집은 기동 시 자동(lifespan).
+services:
+  - type: web
+    name: realty-signal-map
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/meta
+    autoDeploy: true

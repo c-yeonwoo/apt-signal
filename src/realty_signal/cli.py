@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import typer
@@ -104,13 +105,13 @@ def watch(
 
 
 @app.command()
-def serve(host: str = "127.0.0.1", port: int = 8765):
-    """대시보드 웹서버 실행 (먼저 `signal build` 필요)."""
+def serve(
+    host: str = typer.Option(lambda: os.environ.get("HOST", "127.0.0.1")),
+    port: int = typer.Option(lambda: int(os.environ.get("PORT", "8765"))),
+):
+    """대시보드 웹서버 실행. 캐시 없으면 기동 시 자동 수집(lifespan)."""
     import uvicorn
 
-    if not store.CACHE_FILE.exists():
-        console.print("[red]캐시 없음.[/red] 먼저 `signal build <xlsx>` 실행하세요.")
-        raise typer.Exit(1)
     console.print(f"[green]대시보드:[/green] http://{host}:{port}")
     uvicorn.run("realty_signal.api:app", host=host, port=port, log_level="warning")
 

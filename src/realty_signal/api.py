@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import logging
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 
@@ -12,7 +14,22 @@ from fastapi.responses import HTMLResponse
 from realty_signal import store
 from realty_signal.signals.engine import SignalConfig, evaluate
 
-app = FastAPI(title="realty-signal-map")
+log = logging.getLogger("realty_signal")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 캐시가 없으면(신규 배포 등) KB 데이터허브에서 최초 1회 수집.
+    if not store.CACHE_FILE.exists():
+        log.warning("캐시 없음 — KB 데이터허브에서 최초 수집 중…")
+        try:
+            store.fetch()
+        except Exception as e:  # 수집 실패해도 서버는 기동(이후 갱신 버튼으로 재시도)
+            log.error("초기 수집 실패: %s", e)
+    yield
+
+
+app = FastAPI(title="realty-signal-map", lifespan=lifespan)
 
 WEB_DIR = Path(__file__).parent / "web"
 _METRIC_LABEL = {
