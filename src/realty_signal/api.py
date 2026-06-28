@@ -39,13 +39,41 @@ def index():
     return (WEB_DIR / "index.html").read_text(encoding="utf-8")
 
 
+@app.post("/api/refresh")
+def refresh():
+    """KB 데이터허브에서 최신 지표를 재수집하고 캐시/시그널을 갱신."""
+    kb = store.fetch()
+    _kb.cache_clear()
+    _signals_df.cache_clear()
+    return {"ok": True, "last_date": str(kb.last_date.date()), "regions": len(kb.regions)}
+
+
 @app.get("/api/meta")
 def meta():
     kb = _kb()
+    c = SignalConfig()
+    # 전세수급지수 구간(색·설명) — 차트 배경 밴드용
+    jeonse_zones = [
+        {"from": 0, "to": c.jeonse_oversupply, "label": "공급우위", "color": "#3b82f6",
+         "desc": "전세 공급이 수요보다 많음. 전세가 안정·약세."},
+        {"from": c.jeonse_oversupply, "to": c.jeonse_tight, "label": "보통", "color": "#64748b",
+         "desc": "전세 수급 균형 구간."},
+        {"from": c.jeonse_tight, "to": c.jeonse_crunch, "label": "타이트", "color": "#eab308",
+         "desc": "전세 매물이 마르기 시작. 전세난 전환 관찰 구간."},
+        {"from": c.jeonse_crunch, "to": c.jeonse_spillover, "label": "전세난", "color": "#f97316",
+         "desc": "전세 구하기 어려움. 수요가 매매로 넘어올 압력."},
+        {"from": c.jeonse_spillover, "to": 200, "label": "매매전이", "color": "#ef4444",
+         "desc": "전세난 심화 → 매매가 상승 압력으로 전이되는 구간."},
+    ]
     return {
         "regions": kb.regions,
         "metrics": [{"key": k, "label": _METRIC_LABEL.get(k, k)} for k in kb.metrics],
         "last_date": str(kb.last_date.date()),
+        "zones": {
+            "jeonse_supply": jeonse_zones,
+            "buyer_demand_buy": c.demand_buy,        # 매수세우위 매수신호선
+            "buyer_idx_strong": c.buyeridx_strong,   # 매수우위지수 강세선
+        },
     }
 
 
