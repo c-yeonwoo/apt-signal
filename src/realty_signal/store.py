@@ -10,19 +10,27 @@ from pathlib import Path
 
 import pandas as pd
 
-from realty_signal.ingest import kb_weekly
+from realty_signal.ingest import kb_datahub, kb_weekly
 from realty_signal.ingest.kb_weekly import KBWeekly
 
 CACHE_DIR = Path("data/cache")
 CACHE_FILE = CACHE_DIR / "long.parquet"
 
 
-def build(xlsx_path: str | Path, out: Path = CACHE_FILE) -> KBWeekly:
-    """엑셀을 파싱해 parquet 캐시로 저장하고 KBWeekly 반환."""
-    kb = kb_weekly.load(xlsx_path)
+def _save(kb: KBWeekly, out: Path) -> KBWeekly:
     out.parent.mkdir(parents=True, exist_ok=True)
     kb.long.to_parquet(out, index=False)
     return kb
+
+
+def build(xlsx_path: str | Path, out: Path = CACHE_FILE) -> KBWeekly:
+    """엑셀을 파싱해 parquet 캐시로 저장하고 KBWeekly 반환."""
+    return _save(kb_weekly.load(xlsx_path), out)
+
+
+def fetch(out: Path = CACHE_FILE) -> KBWeekly:
+    """KB 데이터허브에서 최신 지표를 받아 parquet 캐시로 저장하고 반환."""
+    return _save(kb_datahub.fetch(), out)
 
 
 def load(cache: Path = CACHE_FILE) -> KBWeekly:

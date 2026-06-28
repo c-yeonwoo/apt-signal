@@ -9,17 +9,28 @@ KB 주간 시계열 기반 아파트 매수·매도 시그널 분석 서비스. 
 
 ## 기술 스택
 
-- Python 3.11+ / pandas / openpyxl / typer / rich
-- (예정) FastAPI + React 풀스택, KB 엑셀 자동 다운로드
-- venv: `.venv/` — `pip install -e ".[dev]"`
+- **Python 3.12** (3.14 금지 — pandas/pyarrow datetime 추론 세그폴트 exit 139)
+- pandas / openpyxl / pyarrow / typer / rich / FastAPI + uvicorn / ECharts(CDN)
+- venv: `.venv/` (3.12) — `pip install -e ".[dev]"`
 
 ## 빌드 & 실행
 
 ```bash
-.venv/bin/signal <kb.xlsx>            # 시그널 리포트
-.venv/bin/signal <kb.xlsx> --region 서울
+.venv/bin/signal fetch                # KB 데이터허브 자동 수집 → 캐시(권장)
+.venv/bin/signal build <kb.xlsx>      # 수동 엑셀 파싱 → 캐시
+.venv/bin/signal serve                # 대시보드 http://127.0.0.1:8765
+.venv/bin/signal report <kb.xlsx>     # 터미널 시그널 리포트
 .venv/bin/pytest -q                   # 테스트
 ```
+
+## KB 데이터허브 API (자동 수집)
+
+- base: `https://data-api.kbland.kr/bfmstat/weekMnthlyHuseTrnd/`
+- `maktTrnd` (메뉴코드 01=매수우위, 03=전세수급; 월간주간 02=주간) →
+  dataList 항목에 `매수우위지수`·`매수자많음`(=매수세우위)·`전세수급지수` 등
+- `prcIndxInxrdcRt` (매물종별 01=아파트, 매매전세 01/02) → 증감률
+- 응답: `dataBody.data.{데이터리스트[{지역명,dataList}], 날짜리스트}`, resultCode 11000
+- TLS 정상(verify 불필요). 날짜는 'YYYYMMDD' → 슬라이싱 파싱(`pd.to_datetime(format=)` 세그폴트 회피).
 
 ## 핵심 개념
 

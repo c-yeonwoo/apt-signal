@@ -12,14 +12,21 @@ KB 주간 시계열 기반 **아파트 매수·매도 시그널** 분석 엔진.
 - ✅ 임계값 기반 시그널 엔진 (전세수급 밴드 / 매수우위 / 모멘텀 / 종합 시그널)
 - ✅ CLI 리포트 (지역별 시그널 테이블 + 지역 추이)
 - ✅ 웹 대시보드 (FastAPI + ECharts) — 지역별 시계열 + 시그널 + 임계선
-- ⬜ KB 데이터허브 자동 수집 (`PublicDataReader` / weekBuyAdvIdx 등) — 예정
+- ✅ **KB 데이터허브 자동 수집** (`signal fetch`) — 엑셀 없이 최신 주간 지표 pull (24개 광역, 2003~현재)
 - ⬜ 입주물량/시장강도(부동산지인·아실) 연동 → 매도/끝물 시그널 — 예정
 - ⬜ React 전환 — 예정
 
 ## 설치 & 실행
 
+> ⚠️ **Python 3.12 권장.** 3.14 에서는 pandas/pyarrow C 확장이 datetime 추론 시
+> 세그폴트(exit 139). `python3.12 -m venv .venv` 로 생성할 것.
+
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+python3.12 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+
+# 데이터 준비 — 둘 중 하나
+.venv/bin/signal fetch                            # KB 데이터허브에서 최신 자동 수집(권장)
+.venv/bin/signal build data/raw/kb_weekly.xlsx    # 수동 엑셀 파싱
 
 # 시그널 리포트 (KB 주간 시계열 엑셀 경로)
 .venv/bin/signal report data/raw/kb_weekly.xlsx
@@ -30,8 +37,7 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 # 특정 지역 추이 (터미널)
 .venv/bin/signal report data/raw/kb_weekly.xlsx --region 서울
 
-# 웹 대시보드 (시계열 시각화)
-.venv/bin/signal build data/raw/kb_weekly.xlsx   # parquet 캐시 생성
+# 웹 대시보드 (시계열 시각화) — fetch/build 로 캐시 생성 후
 .venv/bin/signal serve                            # http://127.0.0.1:8765
 
 # 테스트

@@ -2,7 +2,7 @@
 name = "realty-signal-map"
 version = "0.1.0"
 description = "KB 주간 시계열 기반 아파트 매수·매도 시그널 분석 엔진"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"  # 3.14 는 pandas/pyarrow C확장 세그폴트(exit139)
 dependencies = [
     "openpyxl>=3.1",
     "pandas>=2.0",
