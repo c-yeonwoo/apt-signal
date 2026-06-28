@@ -1,0 +1,29 @@
+[project]
+name = "realty-signal-map"
+version = "0.1.0"
+description = "KB 주간 시계열 기반 아파트 매수·매도 시그널 분석 엔진"
+requires-python = ">=3.11"
+dependencies = [
+    "openpyxl>=3.1",
+    "pandas>=2.0",
+    "typer>=0.12",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+web = ["fastapi>=0.110", "uvicorn>=0.29"]
+
+[project.scripts]
+signal = "realty_signal.cli:app"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

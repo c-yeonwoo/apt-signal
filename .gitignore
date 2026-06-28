@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Data — KB 주간 시계열 원본 엑셀은 커밋하지 않음 (저작권/용량)
+data/raw/*.xlsx
+data/raw/*.xls
+data/*.parquet
+!data/raw/.gitkeep
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
