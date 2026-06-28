@@ -167,6 +167,44 @@ def _classify(
     return signal, reasons
 
 
+def interpret(signal: str, jeonse_state: str, bs: float, demand_state: str,
+              sale_mom: str, supply: float, c: SignalConfig) -> str:
+    """지수들을 종합한 1~2문장 해설 — 사회/통계적 의미를 풀어 설명."""
+    idx_strong = pd.notna(bs) and bs >= c.buyeridx_strong
+    idx_mid = pd.notna(bs) and bs >= c.buyeridx_mid
+    parts: list[str] = []
+
+    # 1) 전세 수급 국면 (전세→매매 전이 메커니즘)
+    if jeonse_state == "매매전이":
+        parts.append("전세난이 심화돼 전세 수요가 매매로 강하게 전이되는 국면으로, 매매가 상승 압력이 큽니다")
+    elif jeonse_state == "전세난":
+        parts.append("전세 매물 부족(전세난)으로 전세가가 오르며 매매 전환 수요가 유입되는 구간입니다")
+    elif jeonse_state == "타이트":
+        parts.append("전세 수급이 타이트해지는 관찰 구간으로, 전세난으로 번지면 매매 상승으로 이어질 수 있습니다")
+    elif jeonse_state == "공급우위":
+        parts.append("전세 공급이 충분해 전세가 안정세이며 매매 상방 압력은 약합니다")
+
+    # 2) 매수심리 + 가격 모멘텀
+    if idx_strong and sale_mom == "상승":
+        parts.append("매수우위지수가 높고 가격도 오르고 있어 매수세가 몰리며 단기 추가 상승 가능성이 높습니다")
+    elif idx_strong:
+        parts.append("매수세가 매도세를 앞서 매수자 우위 시장으로 전환되는 신호입니다")
+    elif sale_mom == "상승" and not parts:
+        parts.append("가격이 상승 중이나 수급·심리 지표가 약해 추세 지속 여부는 관찰이 필요합니다")
+    elif sale_mom == "하락":
+        parts.append("매수세가 위축되고 가격이 하락 전환되는 약세 신호입니다")
+
+    # 3) 입주물량(공급) 보정
+    if pd.notna(supply) and supply >= c.supply_glut:
+        parts.append(f"다만 향후 입주물량이 평년의 {supply:g}배로 많아 중기 공급부담이 가격 상단을 누를 수 있습니다")
+    elif pd.notna(supply) and supply <= c.supply_dry and signal in ("STRONG_BUY", "BUY"):
+        parts.append("입주물량도 적어 공급 측 하방 압력은 제한적입니다")
+
+    if not parts:
+        parts.append("지표상 뚜렷한 방향성이 없는 관망 구간입니다")
+    return ". ".join(parts[:2]) + "."
+
+
 def evaluate(
     kb: KBWeekly, config: SignalConfig | None = None, supply: pd.DataFrame | None = None
 ) -> pd.DataFrame:
@@ -194,11 +232,13 @@ def evaluate(
         demand_state = _demand_state(bd, c) if pd.notna(bd) else "—"
         sp = sp_map.get(region, float("nan"))
         signal, reasons = _classify(js, bs, bd, jeonse_state, sale_mom, c, sp)
+        해설 = interpret(signal, jeonse_state, bs, demand_state, sale_mom, sp, c)
 
         rows.append(
             {
                 "region": region,
                 "signal": signal,
+                "해설": 해설,
                 "전세수급": round(js, 1) if pd.notna(js) else None,
                 "전세상태": jeonse_state,
                 "매수세우위": round(bd, 1) if pd.notna(bd) else None,

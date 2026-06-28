@@ -8,6 +8,7 @@ from realty_signal.signals.engine import (
     _demand_state,
     _jeonse_state,
     _momentum,
+    interpret,
 )
 
 
@@ -111,3 +112,13 @@ def test_history_diff_detects_grade_changes():
     assert regions["부산"]["direction"].startswith("▼")
     # 변화 큰 순 정렬
     assert ch[0]["region"] in ("서울", "부산")
+
+
+def test_interpret_narratives():
+    c = SignalConfig()
+    s1 = interpret("STRONG_BUY", "전세난", 84, "강함", "상승", 0.5, c)
+    assert "전세난" in s1 and ("매수" in s1 or "상승" in s1)
+    assert s1.endswith(".") and s1.count(".") <= 2
+    s2 = interpret("SELL_RISK", "공급우위", 30, "약함", "하락", 1.8, c)
+    assert "하락" in s2 or "약세" in s2
+    assert "공급" in s2  # 입주 과잉 언급

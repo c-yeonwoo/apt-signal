@@ -44,8 +44,17 @@
   #chart { flex:1; }
   .footer { padding:8px 16px 12px; border-top:1px solid var(--line); display:flex;
             align-items:center; gap:14px; flex-wrap:wrap; }
-  #reasons { color:var(--dim); font-size:12px; }
+  #reasons { color:var(--txt); font-size:13px; flex:1 1 420px; min-width:280px; }
   .zlegend { display:flex; gap:4px; margin-left:auto; align-items:center; }
+  /* 지역 트리 */
+  .ghead { padding:8px 12px; font-weight:700; font-size:13px; cursor:pointer; background:#12151c;
+           border-bottom:1px solid var(--line); display:flex; align-items:center; gap:6px; position:sticky; top:0; }
+  .ghead .cnt { color:var(--dim); font-weight:400; font-size:11px; }
+  .shead { padding:6px 12px 6px 22px; font-weight:600; cursor:pointer; display:flex; align-items:center;
+           gap:6px; border-bottom:1px solid var(--line); background:#0d1014; }
+  .caret { display:inline-block; width:10px; color:var(--dim); transition:transform .1s; }
+  .caret.open { transform:rotate(90deg); }
+  .row.lv1 { padding-left:22px; } .row.lv2 { padding-left:38px; }
   .zsw { font-size:11px; padding:2px 8px; border-radius:10px; cursor:help; color:#0f1115; font-weight:600; }
   /* 경매 */
   #view-auction { padding:16px 20px; height:calc(100vh - 52px); overflow:auto; }
@@ -217,19 +226,69 @@ function renderFilters(){
     f.appendChild(el);
   });
 }
+const collapsed = new Set();   // 접힌 그룹/시 키
+const GROUP_ORDER = ['서울','경기','인천','지방·광역'];
+
+function rowEl(r, lv){
+  const row = document.createElement('div');
+  row.className = `row${lv?' lv'+lv:''}` + (selected===r.region?' sel':'');
+  const sp = r['공급압력']==null?'':` · 입주 ${r['공급압력']}x`;
+  // 경기 일반구는 '구명'만 짧게 표기
+  const disp = lv===2 ? r.region.split(' ').slice(1).join(' ')||r.region : r.region;
+  row.innerHTML = `<span class="nm">${disp}</span>${badge(r.signal)}
+    <span class="mn">전세 ${r['전세수급']??'–'} · 매수우위 ${r['매수우위지수']??'–'}${sp}</span>`;
+  row.onclick = () => selectRegion(r.region);
+  return row;
+}
+function header(cls, key, label, count, lv){
+  const h = document.createElement('div'); h.className = cls;
+  const open = !collapsed.has(key);
+  h.innerHTML = `<span class="caret ${open?'open':''}">▸</span>${label} <span class="cnt">${count}</span>`;
+  h.onclick = () => { collapsed.has(key)?collapsed.delete(key):collapsed.add(key); renderList(); };
+  return h;
+}
+function gyeonggiParent(name){ const i=name.indexOf(' '); return i<0?name:name.slice(0,i); }
+
 function renderList(){
   const q = document.getElementById('search').value.trim();
   const grp = document.getElementById('groupFilter').value;
   const list = document.getElementById('list'); list.innerHTML = '';
-  allSignals.filter(r => active.has(r.signal)).filter(r => !grp || r.group===grp)
-    .filter(r => !q || r.region.includes(q)).forEach(r => {
-    const row = document.createElement('div');
-    row.className = 'row' + (selected===r.region?' sel':'');
-    const sp = r['공급압력']==null?'':` · 입주 ${r['공급압력']}x`;
-    row.innerHTML = `<span class="nm">${r.region}</span>${badge(r.signal)}
-      <span class="mn">전세 ${r['전세수급']??'–'} · 매수우위 ${r['매수우위지수']??'–'}${sp}</span>`;
-    row.onclick = () => selectRegion(r.region);
-    list.appendChild(row);
+  const rows = allSignals.filter(r => active.has(r.signal))
+    .filter(r => !grp || r.group===grp).filter(r => !q || r.region.includes(q));
+
+  GROUP_ORDER.forEach(g => {
+    const gr = rows.filter(r => r.group===g);
+    if (!gr.length) return;
+    list.appendChild(header('ghead', 'g:'+g, g, gr.length));
+    if (collapsed.has('g:'+g)) return;
+
+    if (g === '경기') {
+      // 시 → 일반구 2단계. 일반구는 '시 구' 형태(공백 포함).
+      const parents = {};
+      gr.forEach(r => { const p = gyeonggiParent(r.region);
+        (parents[p] = parents[p] || {self:null, kids:[]});
+        if (r.region === p) parents[p].self = r; else parents[p].kids.push(r); });
+      Object.keys(parents).sort().forEach(p => {
+        const node = parents[p];
+        if (node.kids.length) {                       // 일반구를 가진 시
+          const sh = header('shead', 's:'+p, p, node.kids.length + (node.self?1:0));
+          list.appendChild(sh);
+          if (!collapsed.has('s:'+p)) {
+            if (node.self) list.appendChild(rowEl(node.self, 1));
+            node.kids.sort((a,b)=>a.region.localeCompare(b.region))
+              .forEach(k => list.appendChild(rowEl(k, 2)));
+          }
+        } else if (node.self) {                        // 구 없는 시/군
+          list.appendChild(rowEl(node.self, 1));
+        }
+      });
+    } else {
+      // 서울/인천/지방: 집계·광역 먼저, 그 외 가나다순
+      const agg = gr.filter(r => !/[가-힣]+(구|시|군)$/.test(r.region) || r.region.includes('개구') || r.region===g);
+      const leaf = gr.filter(r => !agg.includes(r));
+      [...agg, ...leaf.sort((a,b)=>a.region.localeCompare(b.region))]
+        .forEach(r => list.appendChild(rowEl(r, 1)));
+    }
   });
 }
 function renderZoneLegend(){
@@ -246,7 +305,8 @@ async function selectRegion(region){
   selected = region; renderList();
   const r = allSignals.find(x => x.region===region);
   document.getElementById('sigbadge').innerHTML = `<b>${region}</b> ${badge(r.signal)}`;
-  document.getElementById('reasons').innerHTML = `최신 ${meta.last_date} 기준`;
+  document.getElementById('reasons').innerHTML =
+    `<span style="color:#e6e8ee">💡 ${r['해설']||''}</span>`;
   const d = await (await fetch(`/api/series/${encodeURIComponent(region)}`)).json();
   drawChart(region, d.metrics, r);
 }
