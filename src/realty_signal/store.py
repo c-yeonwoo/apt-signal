@@ -6,6 +6,7 @@ load()      → KBWeekly  (캐시에서 즉시 로드)
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -16,6 +17,7 @@ from realty_signal.ingest.kb_weekly import KBWeekly
 CACHE_DIR = Path("data/cache")
 CACHE_FILE = CACHE_DIR / "long.parquet"
 SUPPLY_FILE = CACHE_DIR / "supply.parquet"
+CODES_FILE = CACHE_DIR / "codes.json"
 
 
 def _save(kb: KBWeekly, out: Path) -> KBWeekly:
@@ -33,6 +35,9 @@ def fetch(out: Path = CACHE_FILE, with_supply: bool = True) -> KBWeekly:
     """KB 데이터허브에서 최신 지표(+입주물량)를 받아 캐시로 저장하고 반환."""
     kb = kb_datahub.fetch()
     _save(kb, out)
+    if kb.codes:
+        CODES_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CODES_FILE.write_text(json.dumps(kb.codes, ensure_ascii=False), encoding="utf-8")
     if with_supply and kb.codes:
         supply = kb_supply.fetch_supply(kb.codes)
         SUPPLY_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -46,7 +51,8 @@ def load(cache: Path = CACHE_FILE) -> KBWeekly:
         raise FileNotFoundError(
             f"캐시 없음: {cache}. 먼저 `signal fetch` 또는 `signal build <xlsx>` 로 생성하세요."
         )
-    return KBWeekly(long=pd.read_parquet(cache))
+    codes = json.loads(CODES_FILE.read_text(encoding="utf-8")) if CODES_FILE.exists() else {}
+    return KBWeekly(long=pd.read_parquet(cache), codes=codes)
 
 
 def load_supply(cache: Path = SUPPLY_FILE) -> pd.DataFrame:

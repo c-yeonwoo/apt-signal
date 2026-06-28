@@ -94,6 +94,20 @@ def meta():
     }
 
 
+_SEOUL_AGG = {"강남11개구", "강북14개구"}
+
+
+def _region_group(region: str, code: str | None) -> str:
+    """시/도 그룹 (필터용)."""
+    if region in _SEOUL_AGG or (code and code.startswith("11")):
+        return "서울"
+    if code and code.startswith("41"):
+        return "경기"
+    if code and code.startswith("28"):
+        return "인천"
+    return "지방·광역"
+
+
 @app.get("/api/signals")
 def signals(only: str | None = None):
     df = _signals_df()
@@ -101,7 +115,11 @@ def signals(only: str | None = None):
         keep = {s.strip().upper() for s in only.split(",")}
         df = df[df["signal"].isin(keep)]
     # pandas to_json 이 NaN → null 로 안전 변환 (float NaN 직렬화 오류 회피)
-    return json.loads(df.to_json(orient="records", force_ascii=False))
+    recs = json.loads(df.to_json(orient="records", force_ascii=False))
+    codes = _kb().codes
+    for r in recs:
+        r["group"] = _region_group(r["region"], codes.get(r["region"]))
+    return recs
 
 
 def _signal_map() -> dict:
