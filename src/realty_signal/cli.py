@@ -18,6 +18,7 @@ from rich.table import Table
 
 from realty_signal import store
 from realty_signal.ingest import kb_weekly
+from realty_signal.signals import history
 from realty_signal.signals.engine import SignalConfig, evaluate
 
 app = typer.Typer(add_completion=False, help="KB 주간 시계열 아파트 시그널 분석")
@@ -48,6 +49,58 @@ def fetch():
     kb = store.fetch()
     console.print(f"[green]수집 완료[/green] → {store.CACHE_FILE} "
                   f"(지역 {len(kb.regions)} · 지표 {len(kb.metrics)} · 최신 {kb.last_date.date()})")
+
+
+def _macos_notify(title: str, message: str):
+    """macOS 알림 센터로 푸시 (실패해도 무시)."""
+    import shutil
+    import subprocess
+
+    osa = shutil.which("osascript")
+    if not osa:
+        return
+    safe = message.replace('"', "'")[:240]
+    subprocess.run(
+        [osa, "-e", f'display notification "{safe}" with title "{title}"'],
+        capture_output=True,
+    )
+
+
+@app.command()
+def watch(
+    quiet: bool = typer.Option(False, help="변화 없으면 출력 생략(cron용)"),
+    notify: bool = typer.Option(False, help="변화 시 macOS 알림 센터로 푸시"),
+):
+    """최신 지표 수집 → 지난주 대비 등급 변화 지역 알림 + 스냅샷 갱신."""
+    kb = store.fetch()
+    df = evaluate(kb, SignalConfig(), store.load_supply())
+    as_of = str(kb.last_date.date())
+    prev = history.load_snapshot()
+    changes = history.diff(prev, df)
+
+    if prev.get("as_of") == as_of and not changes:
+        if not quiet:
+            console.print(f"[dim]변화 없음 (데이터 {as_of}, 이전과 동일)[/dim]")
+        return
+    if not changes:
+        history.save_snapshot(df, as_of)
+        if not quiet:
+            console.print(f"[dim]등급 변화 없음 (데이터 {as_of})[/dim]")
+        return
+
+    table = Table(title=f"시그널 변화 ({as_of}, 지난주 대비)", header_style="bold")
+    for col in ["지역", "방향", "이전→현재", "근거"]:
+        table.add_column(col, overflow="fold")
+    for ch in changes:
+        color = "green" if ch["delta"] > 0 and ch["new"] != "SELL_RISK" else "red"
+        table.add_row(ch["region"], f"[{color}]{ch['direction']}[/{color}]",
+                      f"{ch['old']} → {ch['new']}", ch["근거"])
+    console.print(table)
+    console.print(f"\n[bold]{len(changes)}개 지역 등급 변화[/bold]")
+    if notify:
+        top = ", ".join(f"{c['region']} {c['old']}→{c['new']}" for c in changes[:3])
+        _macos_notify(f"부동산 시그널 변화 {len(changes)}건 ({as_of})", top)
+    history.save_snapshot(df, as_of)
 
 
 @app.command()

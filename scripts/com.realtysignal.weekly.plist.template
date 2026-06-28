@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  주간 시그널 자동 점검 (KB 발표일=금요일 기준, 토요일 09:00 실행).
+  설치:
+    PROJECT=/ABSOLUTE/PATH/to/realty-signal-map
+    sed "s#__PROJECT__#$PROJECT#g" scripts/com.realtysignal.weekly.plist.template \
+      > ~/Library/LaunchAgents/com.realtysignal.weekly.plist
+    launchctl load ~/Library/LaunchAgents/com.realtysignal.weekly.plist
+  해제:
+    launchctl unload ~/Library/LaunchAgents/com.realtysignal.weekly.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.realtysignal.weekly</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PROJECT__/.venv/bin/signal</string>
+    <string>watch</string>
+    <string>--quiet</string>
+    <string>--notify</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__PROJECT__</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key><integer>6</integer>   <!-- 6 = 토요일 -->
+    <key>Hour</key><integer>9</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>__PROJECT__/data/cache/watch.log</string>
+  <key>StandardErrorPath</key>
+  <string>__PROJECT__/data/cache/watch.err.log</string>
+</dict>
+</plist>

@@ -12,8 +12,11 @@ KB 주간 시계열 기반 **아파트 매수·매도 시그널** 분석 엔진.
 - ✅ 임계값 기반 시그널 엔진 (전세수급 밴드 / 매수우위 / 모멘텀 / 종합 시그널)
 - ✅ CLI 리포트 (지역별 시그널 테이블 + 지역 추이)
 - ✅ 웹 대시보드 (FastAPI + ECharts) — 지역별 시계열 + 시그널 + 임계선
-- ✅ **KB 데이터허브 자동 수집** (`signal fetch`) — 엑셀 없이 최신 주간 지표 pull (24개 광역, 2003~현재)
-- ⬜ 입주물량/시장강도(부동산지인·아실) 연동 → 매도/끝물 시그널 — 예정
+- ✅ **KB 데이터허브 자동 수집** (`signal fetch`) — 엑셀 없이 최신 주간 지표 pull
+- ✅ **수도권 시군구 확장** (서울·경기·인천 증감률 드릴다운) — 112개 지역
+- ✅ **입주물량 매도 시그널** — 공급압력(향후/과거) → 공급과잉+하락 시 SELL_RISK
+- ✅ **주간 변화 알림** (`signal watch`) — 지난주 대비 등급 변화 + macOS 알림 + launchd 스케줄
+- ⬜ 시장강도/연차별(부동산지인·아실) — 예정
 - ⬜ React 전환 — 예정
 
 ## 설치 & 실행
@@ -40,8 +43,21 @@ python3.12 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 # 웹 대시보드 (시계열 시각화) — fetch/build 로 캐시 생성 후
 .venv/bin/signal serve                            # http://127.0.0.1:8765
 
+# 주간 변화 알림 (지난주 대비 등급 변화)
+.venv/bin/signal watch                            # 변화 지역 표 출력
+.venv/bin/signal watch --notify                   # + macOS 알림 센터 푸시
+
 # 테스트
 .venv/bin/pytest -q
+```
+
+### 주간 자동 실행 (launchd, 매주 토 09:00)
+
+```bash
+PROJECT=$(pwd)
+sed "s#__PROJECT__#$PROJECT#g" scripts/com.realtysignal.weekly.plist.template \
+  > ~/Library/LaunchAgents/com.realtysignal.weekly.plist
+launchctl load ~/Library/LaunchAgents/com.realtysignal.weekly.plist
 ```
 
 ## 시그널 로직

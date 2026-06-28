@@ -1,6 +1,7 @@
 import pandas as pd
 
 from realty_signal.ingest.kb_weekly import _clean_region, _normalize_dates
+from realty_signal.signals.history import diff
 from realty_signal.signals.engine import (
     SignalConfig,
     _classify,
@@ -93,3 +94,20 @@ def test_classify_memo_is_reference_only():
     sig, reasons = _classify(120, 40, 25, "보통", "보합", c)
     assert sig == "NEUTRAL"
     assert any("[참고]" in r and "매수세우위" in r for r in reasons)
+
+
+def test_history_diff_detects_grade_changes():
+    prev = {"as_of": "2026-06-15", "signals": {"서울": "WATCH", "부산": "BUY", "대구": "NEUTRAL"}}
+    df = pd.DataFrame([
+        {"region": "서울", "signal": "STRONG_BUY", "근거": "x"},   # 상승
+        {"region": "부산", "signal": "SELL_RISK", "근거": "y"},     # 하락
+        {"region": "대구", "signal": "NEUTRAL", "근거": "z"},       # 변화없음
+        {"region": "신규", "signal": "BUY", "근거": "w"},           # 이전 없음 → 무시
+    ])
+    ch = diff(prev, df)
+    regions = {c["region"]: c for c in ch}
+    assert set(regions) == {"서울", "부산"}
+    assert regions["서울"]["direction"].startswith("▲")
+    assert regions["부산"]["direction"].startswith("▼")
+    # 변화 큰 순 정렬
+    assert ch[0]["region"] in ("서울", "부산")
