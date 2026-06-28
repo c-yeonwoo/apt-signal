@@ -20,6 +20,7 @@ CACHE_FILE = CACHE_DIR / "long.parquet"
 SUPPLY_FILE = CACHE_DIR / "supply.parquet"
 CODES_FILE = CACHE_DIR / "codes.json"
 LOCALITY_FILE = CACHE_DIR / "locality.parquet"
+MACRO_FILE = CACHE_DIR / "macro.json"
 
 
 def _recent_months(n: int = 3) -> list[str]:
@@ -52,6 +53,10 @@ def load_localities(cache: Path = LOCALITY_FILE) -> "pd.DataFrame":
     return pd.read_parquet(cache) if cache.exists() else pd.DataFrame()
 
 
+def load_macro(cache: Path = MACRO_FILE) -> dict:
+    return json.loads(cache.read_text(encoding="utf-8")) if cache.exists() else {}
+
+
 def _save(kb: KBWeekly, out: Path) -> KBWeekly:
     out.parent.mkdir(parents=True, exist_ok=True)
     kb.long.to_parquet(out, index=False)
@@ -70,6 +75,10 @@ def fetch(out: Path = CACHE_FILE, with_supply: bool = True) -> KBWeekly:
     if kb.codes:
         CODES_FILE.parent.mkdir(parents=True, exist_ok=True)
         CODES_FILE.write_text(json.dumps(kb.codes, ensure_ascii=False), encoding="utf-8")
+    try:
+        MACRO_FILE.write_text(json.dumps(kb_datahub.fetch_macro(), ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
     if with_supply and kb.codes:
         supply = kb_supply.fetch_supply(kb.codes)
         SUPPLY_FILE.parent.mkdir(parents=True, exist_ok=True)

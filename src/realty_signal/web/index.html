@@ -141,6 +141,7 @@
       <div id="chart"></div>
       <div class="footer">
         <span id="sigbadge"></span>
+        <button class="chip" id="histBtn" onclick="toggleHist()" style="white-space:nowrap">지난 시그널 보기</button>
         <span id="reasons"></span>
         <div class="zlegend" id="zlegend"></div>
       </div>
@@ -471,6 +472,10 @@ async function selectRegion(region){
   document.getElementById('reasons').innerHTML =
     (r['근거']||'').split(' · ').filter(Boolean).map(x=>`<span class="rchip">${x}</span>`).join('');
   const d = await (await fetch(`/api/series/${encodeURIComponent(region)}`)).json();
+  _lastM = d.metrics; _lastSig = r;
+  if(_showHist && !_histCache[region]){
+    _histCache[region] = (await (await fetch(`/api/signal-history/${encodeURIComponent(region)}`)).json()).intervals;
+  }
   drawChart(region, d.metrics, r);
 }
 function wrapKo(s, n){
@@ -512,11 +517,32 @@ function drawChart(region, m, sig){
   mk("buyer_demand", 0, { markLine:{ symbol:'none', label:{position:'insideEndTop',fontSize:10},
       lineStyle:{type:'dashed',opacity:.4}, data:[{yAxis:meta.zones.buyer_demand_buy, name:'매수신호', lineStyle:{color:'#4ade80'}}]}});
   mk("sale_change", 1); mk("jeonse_change", 1);
+
+  // 거시 오버레이: 주택구매력(지수축) + 주택담보대출금리(금리축)
+  const mc = window._macro;
+  if(mc){
+    series.push({ name:'주택구매력', type:'line', yAxisIndex:0, showSymbol:false, z:0,
+      lineStyle:{width:1.2, type:'dashed', color:'#94a3b8'}, itemStyle:{color:'#94a3b8'},
+      data: mc.dates.map((dt,i)=>[dt, mc.구매력?.[i]]) });
+    series.push({ name:'대출금리%', type:'line', yAxisIndex:2, showSymbol:false, z:0,
+      lineStyle:{width:1.4, color:'#fb7185'}, itemStyle:{color:'#fb7185'},
+      data: mc.dates.map((dt,i)=>[dt, mc.대출금리?.[i]]) });
+  }
+  // 지난 시그널(STRONG_BUY/BUY) 구간 반투명 오버레이
+  if(_showHist && _histCache[region]?.length){
+    series.push({ name:'시그널구간', type:'line', data:[], yAxisIndex:0, silent:true,
+      markArea:{ data: _histCache[region].map(h=>[
+        {xAxis:h.start, itemStyle:{color: h.signal==='STRONG_BUY'?'rgba(34,197,94,0.20)':'rgba(74,222,128,0.10)'}},
+        {xAxis:h.end}]) }});
+  }
+
   const last = meta.last_date, start = new Date(last); start.setFullYear(start.getFullYear()-3);
   const z0 = start.toISOString().slice(0,10);
-  chart.setOption({ tooltip:{trigger:'axis'}, legend:{top:6, right:60, textStyle:{fontSize:11}},
-    grid:{left:46, right:52, top:40, bottom:64}, xAxis:{type:'time'},
-    yAxis:[{name:'지수', min:0, max:200, splitLine:{lineStyle:{opacity:.12}}}, {name:'증감%', splitLine:{show:false}}],
+  chart.setOption({ tooltip:{trigger:'axis'}, legend:{top:6, right:96, textStyle:{fontSize:11}},
+    grid:{left:46, right:96, top:40, bottom:64}, xAxis:{type:'time'},
+    yAxis:[{name:'지수', min:0, max:200, splitLine:{lineStyle:{opacity:.12}}},
+           {name:'증감%', position:'right', splitLine:{show:false}},
+           {name:'금리%', position:'right', offset:48, min:0, splitLine:{show:false}, axisLabel:{color:'#fb7185'}, nameTextStyle:{color:'#fb7185'}}],
     dataZoom:[{type:'inside', startValue:z0, endValue:last}, {type:'slider', startValue:z0, endValue:last, height:22, bottom:14}],
     graphic: sig ? reasonGraphic(region, sig) : [], series }, true);
 }
@@ -530,9 +556,24 @@ async function loadData(){
   meta = await (await fetch('/api/meta')).json();
   document.getElementById('date').textContent = `최신 ${meta.last_date}`;
   allSignals = await (await fetch('/api/signals')).json();
+  try {
+    const mc = await (await fetch('/api/macro')).json();
+    if(mc.dates) window._macro = {
+      dates: mc.dates.map(s=>`${s.slice(0,4)}-${s.slice(4,6)}-01`),
+      구매력: mc.구매력, 대출금리: mc.대출금리 };
+  } catch(e){}
   renderZoneLegend(); renderList();
   const keep = selected && allSignals.find(r=>r.region===selected);
   selectRegion(keep ? selected : (allSignals.find(r=>active.has(r.signal))||allSignals[0]).region);
+}
+let _showHist=false, _histCache={}, _lastM=null, _lastSig=null;
+async function toggleHist(){
+  _showHist=!_showHist;
+  document.getElementById('histBtn').classList.toggle('on', _showHist);
+  if(_showHist && selected && !_histCache[selected]){
+    _histCache[selected] = (await (await fetch(`/api/signal-history/${encodeURIComponent(selected)}`)).json()).intervals;
+  }
+  if(_lastM) drawChart(selected, _lastM, _lastSig);
 }
 
 /* ---------- 경매 탭 ---------- */

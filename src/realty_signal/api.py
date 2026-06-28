@@ -48,7 +48,7 @@ def _kb():
 
 @lru_cache(maxsize=1)
 def _signals_df():
-    return evaluate(_kb(), SignalConfig(), store.load_supply())
+    return evaluate(_kb(), SignalConfig(), store.load_supply(), store.load_macro())
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -210,6 +210,19 @@ def undervalued():
     for r in recs:
         r["시그널"] = sig.get(r["region"], "")
     return {"ready": True, "listings": recs}
+
+
+@app.get("/api/macro")
+def macro():
+    """거시지표: 전국 아파트 주택구매력지수 + 주택담보대출금리 (월간)."""
+    return store.load_macro()
+
+
+@app.get("/api/signal-history/{region}")
+def signal_hist(region: str):
+    """지역의 과거 STRONG_BUY/BUY 구간 (백테스트)."""
+    from realty_signal.signals.engine import signal_history
+    return {"intervals": signal_history(_kb(), region, SignalConfig())}
 
 
 @app.get("/api/series/{region}")

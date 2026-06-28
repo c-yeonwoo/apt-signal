@@ -78,6 +78,26 @@ def _change_rows(
     return rows
 
 
+def fetch_macro() -> dict:
+    """거시지표: 전국 아파트 주택구매력지수 + 주택담보대출금리 (월간, 키 불필요).
+
+    주택구매력↑ = 살 여력 좋음(부담↓). 대출금리 = 구입부담의 핵심 변수.
+    """
+    url = _BASE + "HAI"
+    req = urllib.request.Request(url, headers={"User-Agent": _UA})
+    with urllib.request.urlopen(req, timeout=30) as r:  # noqa: S310
+        data = json.load(r)["dataBody"]["data"]
+    dates = data["날짜리스트"]  # YYYYMM
+    power = None
+    for rec in data.get("주택구매력리스트", []):
+        if rec.get("지역명") == "전국":
+            for g in rec.get("지역구분리스트", []):
+                if g.get("매물종별구분") == "아파트":
+                    power = g.get("매물종별구분리스트")
+    rates = [x.get("주택담보대출금리") for x in data.get("주담보월소득리스트", [])]
+    return {"dates": dates, "구매력": power, "대출금리": rates}
+
+
 def fetch(expand_sudogwon: bool = True) -> KBWeekly:
     """KB 데이터허브에서 최신 주간 지표를 받아 KBWeekly 로 반환.
 

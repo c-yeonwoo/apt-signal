@@ -211,8 +211,70 @@ def interpret(signal: str, jeonse_state: str, bs: float, demand_state: str,
     return ". ".join(parts[:2]) + "."
 
 
+def signal_history(kb: KBWeekly, region: str, config: SignalConfig | None = None) -> list[dict]:
+    """지역의 과거 주간 시그널을 역산해 STRONG_BUY/BUY 연속 구간 반환.
+
+    각 주: 전세수급·매수우위지수(시군구는 상위 광역 상속) + 직전 N주 매매모멘텀 → _classify.
+    """
+    c = config or SignalConfig()
+    js = kb.series(region, "jeonse_supply")
+    bs = kb.series(region, "buyer_superiority")
+    bd = kb.series(region, "buyer_demand")
+    if js.empty:  # 시군구 → 상위 광역 상속
+        code = (kb.codes or {}).get(region, "") or ""
+        parent = None
+        if region in _SEOUL_GANGNAM:
+            parent = "강남11개구"
+        elif region in _SEOUL_GANGBUK:
+            parent = "강북14개구"
+        else:
+            parent = {"11": "서울", "41": "경기", "28": "인천", "46": "전남"}.get(code[:2])
+        if parent:
+            js, bs, bd = kb.series(parent, "jeonse_supply"), kb.series(parent, "buyer_superiority"), kb.series(parent, "buyer_demand")
+    sale = kb.series(region, "sale_change")
+    if sale.empty:
+        return []
+
+    dates = list(sale.index)
+    intervals, cur = [], None
+    for i, d in enumerate(dates):
+        jv = js.asof(d) if not js.empty else float("nan")
+        bv = bs.asof(d) if not bs.empty else float("nan")
+        dv = bd.asof(d) if not bd.empty else float("nan")
+        mom = sale.iloc[max(0, i - c.momentum_weeks + 1): i + 1].mean()
+        mom_lbl = "상승" if mom >= c.momentum_up else ("하락" if mom <= c.momentum_down else "보합")
+        sig, _ = _classify(jv, bv, dv, _jeonse_state(jv, c) if pd.notna(jv) else "—", mom_lbl, c)
+        hot = sig in ("STRONG_BUY", "BUY")
+        if hot and cur is None:
+            cur = {"start": str(d.date()), "signal": sig}
+        elif hot:
+            cur["signal"] = "STRONG_BUY" if "STRONG_BUY" in (cur["signal"], sig) else cur["signal"]
+        elif cur is not None:
+            cur["end"] = str(dates[i - 1].date())
+            intervals.append(cur)
+            cur = None
+    if cur is not None:
+        cur["end"] = str(dates[-1].date())
+        intervals.append(cur)
+    return intervals
+
+
+def macro_trend(macro: dict) -> dict:
+    """대출금리·구매력 최근 추세(상승/하락/보합) 요약."""
+    def dir_of(arr):
+        v = [x for x in (arr or []) if x is not None]
+        if len(v) < 7:
+            return None, (v[-1] if v else None)
+        diff = v[-1] - v[-7]
+        return ("상승" if diff > 0.05 else "하락" if diff < -0.05 else "보합"), v[-1]
+    rd, rv = dir_of(macro.get("대출금리"))
+    pd_, pv = dir_of(macro.get("구매력"))
+    return {"rate_dir": rd, "rate": rv, "power_dir": pd_, "power": pv}
+
+
 def evaluate(
-    kb: KBWeekly, config: SignalConfig | None = None, supply: pd.DataFrame | None = None
+    kb: KBWeekly, config: SignalConfig | None = None, supply: pd.DataFrame | None = None,
+    macro: dict | None = None,
 ) -> pd.DataFrame:
     """지역별 최신 시그널 테이블 산출. supply: 입주물량 공급압력 테이블(선택)."""
     c = config or SignalConfig()
@@ -225,6 +287,21 @@ def evaluate(
 
     def _get(region, metric):
         return latest.at[region, metric] if metric in latest and region in latest.index else float("nan")
+
+    # 거시 환경 한 줄 (금리·구매력)
+    mt = macro_trend(macro or {})
+    macro_clause = ""
+    if mt["rate"] is not None:
+        if mt["rate_dir"] == "하락":
+            macro_clause = f"대출금리 하락기(현 {mt['rate']}%)로 매수 여력이 개선되는 거시환경"
+        elif mt["rate_dir"] == "상승":
+            macro_clause = f"대출금리 상승기(현 {mt['rate']}%)로 매수 부담이 커지는 거시환경"
+        else:
+            macro_clause = f"대출금리 보합(현 {mt['rate']}%) 환경"
+        if mt["power_dir"] == "상승":
+            macro_clause += ", 주택구매력도 개선 중"
+        elif mt["power_dir"] == "하락":
+            macro_clause += ", 주택구매력은 약화 중"
 
     have = set(latest.index)
 
@@ -264,6 +341,8 @@ def evaluate(
         if inherited_from:
             reasons.append(f"※수급·심리는 {inherited_from} 광역 기준")
             해설 = f"({inherited_from} 광역 수급 + {region} 매매흐름) " + 해설
+        if macro_clause:
+            해설 += f" {macro_clause}입니다." if not 해설.rstrip().endswith("입니다.") else f" ({macro_clause})"
 
         rows.append(
             {
