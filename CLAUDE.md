@@ -60,7 +60,7 @@ KB 주간 시계열 기반 아파트 매수·매도 시그널 분석 서비스. 
 ## 경매 탭 (`auction.py`)
 
 - 매물 수동입력/CSV → `data/cache/auction.json`. API: `/api/auction/{listings,import,buy-regions}`.
-- 입찰가 계산은 옥션홈즈 '입찰가 산정표' 모델(`auction.breakdown`/`table`/`recommend`):
+- 입찰가 계산은 입찰가 산정표 모델(`auction.breakdown`/`table`/`recommend`):
   경매총매입(입찰가+등기비+명도비+이자 등) vs 일반매매총매입 → 시세차익률, 임대수익률, 단기매도수익률.
   낙찰가율 민감도 표 + 목표 시세차익률 만족 최대 입찰가 = 권장입찰가.
 - 명도비 = 전용㎡×0.3025(평)×15만, 등기비 = 입찰가×취득세율+법무비. 파라미터는 DEFAULTS.
