@@ -11,7 +11,7 @@ from pathlib import Path
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from realty_signal import auction, store
+from realty_signal import auction, config, store
 from realty_signal.signals.engine import SignalConfig, evaluate
 
 log = logging.getLogger("realty_signal")
@@ -177,6 +177,15 @@ def auction_add(data: dict = Body(...)):
 def auction_delete(listing_id: str):
     auction.remove(listing_id)
     return {"ok": True}
+
+
+@app.post("/api/auction/refresh-market")
+def auction_refresh_market():
+    """등록 매물의 최근 실거래가를 국토부에서 조회해 갱신."""
+    config.load_env()
+    key = config.public_data_key()
+    codes = json.loads(store.CODES_FILE.read_text(encoding="utf-8")) if store.CODES_FILE.exists() else {}
+    return {"updated": auction.update_market(codes, key)}
 
 
 @app.post("/api/auction/import")

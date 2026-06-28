@@ -18,7 +18,10 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
+import urllib.request
 import uuid
+import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -63,6 +66,8 @@ class Listing:
     수리비: float = 0.0
     인수보증금: float = 0.0
     대리입찰비: float = 0.0
+    최근실거래가: float | None = None   # 국토부 동일단지 최근 매매(만원)
+    최근전세가: float | None = None     # 국토부 동일단지 최근 전세(만원)
     메모: str = ""
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
 
@@ -78,7 +83,7 @@ def breakdown(lst: Listing, 입찰가: float, p: dict) -> dict:
     """주어진 입찰가에 대한 전체 비용·수익 분해."""
     loan_ratio = lst.대출비율 if lst.대출비율 is not None else p["대출비율"]
     rate = lst.대출금리 if lst.대출금리 is not None else p["대출금리"]
-    market = lst.시세 or lst.감정가
+    market = lst.시세 or lst.최근실거래가 or lst.감정가  # 시세 미입력 시 최근 실거래가 → 감정가 순
 
     등기비 = 입찰가 * p["취득세율"] + p["법무비"] / 10000  # 법무비는 원→만원
     명도비 = lst.전용면적 * p["㎡_평"] * p["명도_평당"] / 10000
@@ -164,6 +169,74 @@ def add(data: dict) -> Listing:
 
 def remove(listing_id: str) -> None:
     save([x for x in load() if x.id != listing_id])
+
+
+def _norm(s: str) -> str:
+    return (s or "").replace("아파트", "").replace(" ", "").strip()
+
+
+def _recent_yms(n: int = 6) -> list[str]:
+    from datetime import date
+
+    y, m, out = date.today().year, date.today().month, []
+    for _ in range(n):
+        m -= 1
+        if m == 0:
+            y, m = y - 1, 12
+        out.append(f"{y}{m:02d}")
+    return out
+
+
+def recent_trade_price(lawd5: str, dong: str, core: str, area: float, key: str) -> float | None:
+    """국토부 매매 실거래에서 동일단지(동+이름+면적) 최근 거래금액(만원)."""
+    base = "https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev"
+    best = None
+    cn = _norm(core)
+    for ym in _recent_yms(6):
+        url = f"{base}?serviceKey={key}&LAWD_CD={lawd5}&DEAL_YMD={ym}&numOfRows=600&pageNo=1"
+        try:
+            root = ET.fromstring(urllib.request.urlopen(  # noqa: S310
+                urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=30).read())
+        except Exception:
+            continue
+        for it in root.iter("item"):
+            apt = (it.findtext("aptNm") or "").strip()
+            umd = (it.findtext("umdNm") or "").strip()
+            if dong and umd and dong not in umd and umd not in dong:
+                continue
+            an = _norm(apt)
+            if not (an == cn or (cn and (cn in an or an in cn))):
+                continue
+            try:
+                ar = float(it.findtext("excluUseAr"))
+                if area and abs(ar - area) / area > 0.15:
+                    continue
+                amt = float(it.findtext("dealAmount").replace(",", "").strip())
+                d = (int(it.findtext("dealYear")), int(it.findtext("dealMonth")), int(it.findtext("dealDay")))
+            except (ValueError, AttributeError, TypeError):
+                continue
+            if best is None or d > best[0]:
+                best = (d, amt)
+    return best[1] if best else None
+
+
+def update_market(codes: dict, key: str) -> int:
+    """등록 매물의 최근 실거래가를 국토부에서 조회해 채운다. 갱신 건수 반환."""
+    listings = load()
+    n = 0
+    for lst in listings:
+        code = codes.get(lst.region, "")
+        if not (code and code.isdigit()):
+            continue
+        dong_m = re.search(r"([가-힣]+동)", lst.메모 or "")
+        dong = dong_m.group(1) if dong_m else ""
+        core = re.sub(r"\(.*?\)", "", lst.단지명)
+        price = recent_trade_price(code[:5], dong, core, lst.전용면적, key)
+        if price:
+            lst.최근실거래가 = price
+            n += 1
+    save(listings)
+    return n
 
 
 def import_csv(text: str) -> int:

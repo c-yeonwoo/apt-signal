@@ -163,6 +163,7 @@
       <label>보유개월 <input id="pHold" type="number" value="6" step="1" oninput="loadAuction()"></label>
       <button class="btn primary" onclick="openAdd()">+ 매물 추가</button>
       <button class="btn" onclick="document.getElementById('csv').click()">CSV 임포트</button>
+      <button class="btn" id="mktBtn" onclick="refreshMarket()">최근 실거래가 갱신</button>
       <input id="csv" type="file" accept=".csv" style="display:none" onchange="importCsv(this)">
       <span class="pill">CSV: 단지명,region,감정가,최저매각가,시세,전용면적,입찰기일…</span>
     </div>
@@ -190,7 +191,7 @@
     <table>
       <thead><tr>
         <th class="l">단지명</th><th class="l">지역</th><th>감정가</th><th>최저매각가</th>
-        <th>시세</th><th>권장입찰가</th><th>시세차익률</th><th>임대수익률</th>
+        <th>최근실거래</th><th>전세</th><th>권장입찰가</th><th>시세차익률</th><th>임대수익률</th>
         <th class="l">입찰기일</th><th>우선순위</th><th></th>
       </tr></thead>
       <tbody id="auctionRows"></tbody>
@@ -227,7 +228,25 @@
 <dialog id="calcDlg" style="width:760px">
   <h3 id="calcTitle"></h3>
   <div id="calcBreak" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px"></div>
-  <div style="max-height:50vh;overflow:auto">
+
+  <div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+      <b style="font-size:14px">대출 계산기</b>
+      <label style="font-size:12px"><input type="checkbox" id="ln_first" checked onchange="firstHomePreset()"> 생애최초</label>
+      <span class="pill">금융 우대 기준 · 원금균등/원리금균등</span>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--dim)">
+      <label>매입가(만원) <input id="ln_price" type="number" style="width:90px" oninput="recalcLoan()"></label>
+      <label>LTV % <input id="ln_ltv" type="number" value="80" step="5" style="width:56px" oninput="recalcLoan()"></label>
+      <label>금리 % <input id="ln_rate" type="number" value="3.5" step="0.1" style="width:56px" oninput="recalcLoan()"></label>
+      <label>기간(년) <input id="ln_years" type="number" value="30" step="1" style="width:52px" oninput="recalcLoan()"></label>
+      <label>상환 <select id="ln_method" onchange="recalcLoan()" style="background:#0f1115;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:4px">
+        <option value="원금균등">원금균등</option><option value="원리금균등">원리금균등</option></select></label>
+    </div>
+    <div id="ln_out" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px"></div>
+  </div>
+
+  <div style="max-height:42vh;overflow:auto">
     <table id="calcTable"></table>
   </div>
   <div class="dlg-foot"><button class="btn" onclick="document.getElementById('calcDlg').close()">닫기</button></div>
@@ -540,6 +559,38 @@ async function importCsv(input){
   input.value=''; alert(`${r.added}건 추가됨`); loadAuction();
 }
 async function delListing(id){ await fetch('/api/auction/listings/'+id, {method:'DELETE'}); loadAuction(); }
+async function refreshMarket(){
+  const b=document.getElementById('mktBtn'); b.disabled=true; const o=b.textContent; b.textContent='조회 중…';
+  try{ const r=await (await fetch('/api/auction/refresh-market',{method:'POST'})).json();
+    b.textContent=`✓ ${r.updated}건`; await loadAuction(); }catch(e){ b.textContent='실패'; }
+  setTimeout(()=>{b.textContent=o;b.disabled=false;},2500);
+}
+
+function firstHomePreset(){
+  const on=document.getElementById('ln_first').checked;
+  document.getElementById('ln_ltv').value = on?80:70;
+  document.getElementById('ln_rate').value = on?3.5:4.5;
+  recalcLoan();
+}
+function recalcLoan(){
+  const v=id=>+document.getElementById(id).value;
+  const price=v('ln_price'), ltv=v('ln_ltv')/100, rm=v('ln_rate')/100/12, n=v('ln_years')*12;
+  if(!price||!n){ document.getElementById('ln_out').innerHTML=''; return; }
+  const loan=price*ltv, equity=price-loan;
+  let monthly, interest;
+  if(document.getElementById('ln_method').value==='원리금균등'){
+    monthly = rm? loan*rm*Math.pow(1+rm,n)/(Math.pow(1+rm,n)-1) : loan/n;
+    interest = monthly*n - loan;
+  }else{ // 원금균등: 첫달 최대
+    monthly = loan/n + loan*rm;          // 첫달 납입
+    interest = loan*rm*(n+1)/2;          // 총이자
+  }
+  const card=(t,val,c)=>`<div class="scard" style="min-width:120px"><div style="color:var(--dim);font-size:11px">${t}</div><div style="font-size:18px;font-weight:700;color:${c||'#e6e8ee'}">${val}</div></div>`;
+  document.getElementById('ln_out').innerHTML =
+    card('자본금', won(equity), '#fbbf24') + card(`대출금 (LTV ${v('ln_ltv')}%)`, won(loan), '#4ade80') +
+    card(document.getElementById('ln_method').value==='원금균등'?'월납입(첫달)':'월납입금', won(Math.round(monthly))) +
+    card(`이자총액 (${v('ln_years')}년)`, won(Math.round(interest)));
+}
 
 async function loadAuction(){
   // BUY+ 지역 가이드
@@ -570,7 +621,8 @@ function renderAuction(rows){
     const lease = r['임대수익률']==null?'–':r['임대수익률']+'%';
     tr2.innerHTML = `<td class="l">${r['단지명']||'–'} ${r['목표달성']?'':'<span class="pill">목표미달</span>'}</td>
       <td class="l">${r['region']||''} ${r['지역시그널']?badge(r['지역시그널']):''}</td>
-      <td>${won(r['감정가'])}</td><td>${won(r['최저매각가'])}</td><td>${won(r['시세'])}</td>
+      <td>${won(r['감정가'])}</td><td>${won(r['최저매각가'])}</td>
+      <td>${won(r['최근실거래가'])}</td><td>${won(r['최근전세가'])}</td>
       <td style="color:#4ade80;font-weight:600">${won(r['권장입찰가'])}</td>
       <td style="color:${r['시세차익률']>=0?'#4ade80':'#f87171'}">${r['시세차익률']}%</td>
       <td>${lease}</td>
@@ -618,6 +670,8 @@ async function openCalc(id, name){
     }).join('')+'</tr>';
   });
   document.getElementById('calcTable').innerHTML = h+'</tbody>';
+  document.getElementById('ln_price').value = rec['입찰가'];  // 대출계산 기본=권장입찰가
+  recalcLoan();
   document.getElementById('calcDlg').showModal();
 }
 
