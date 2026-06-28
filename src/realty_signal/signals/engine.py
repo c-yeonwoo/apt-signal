@@ -50,6 +50,9 @@ class SignalConfig:
     momentum_weeks: int = 4
     momentum_up: float = 0.05
     momentum_down: float = -0.05
+    # 입주물량 공급압력(향후/과거) 임계
+    supply_glut: float = 1.3   # 공급과잉 → 매도/하락 압력
+    supply_dry: float = 0.7    # 공급부족 → 매수 우호
 
 
 def _jeonse_state(v: float, c: SignalConfig) -> str:
@@ -91,12 +94,19 @@ def _momentum(series: pd.Series, c: SignalConfig) -> tuple[float, str]:
 
 
 def _classify(
-    js: float, bs: float, bd: float, jeonse_state: str, sale_mom: str, c: SignalConfig
+    js: float,
+    bs: float,
+    bd: float,
+    jeonse_state: str,
+    sale_mom: str,
+    c: SignalConfig,
+    supply: float = float("nan"),
 ) -> tuple[str, list[str]]:
     """OR 조건 종합 시그널 + 조건별 근거 리스트.
 
     차트 기준(전세수급·매수우위지수·매매모멘텀)을 우선 판정하고,
     메모 기준(매수세우위 사다리)은 [참고] 근거로만 덧붙인다.
+    입주물량 공급압력(supply)은 매도/하락 압력 보정에 사용한다.
     """
     reasons: list[str] = []
 
@@ -141,15 +151,33 @@ def _classify(
     else:
         signal = "NEUTRAL"
 
+    # --- 입주물량 공급압력 보정 (매도/끝물) ---
+    if pd.notna(supply):
+        if supply >= c.supply_glut:
+            reasons.append(f"공급과잉(향후 입주 {supply:g}배)")
+            if sale_mom == "하락":
+                signal = "SELL_RISK"  # 입주폭탄 + 가격하락 = 매도 구간
+            elif signal in ("STRONG_BUY", "BUY"):
+                reasons.append("⚠️입주부담 주의")
+        elif supply <= c.supply_dry:
+            reasons.append(f"공급부족(향후 입주 {supply:g}배)")
+
     if not reasons:
         reasons.append("뚜렷한 시그널 없음")
     return signal, reasons
 
 
-def evaluate(kb: KBWeekly, config: SignalConfig | None = None) -> pd.DataFrame:
-    """지역별 최신 시그널 테이블 산출."""
+def evaluate(
+    kb: KBWeekly, config: SignalConfig | None = None, supply: pd.DataFrame | None = None
+) -> pd.DataFrame:
+    """지역별 최신 시그널 테이블 산출. supply: 입주물량 공급압력 테이블(선택)."""
     c = config or SignalConfig()
     latest = kb.latest()
+    sp_map = (
+        dict(zip(supply["region"], supply["supply_pressure"]))
+        if supply is not None and not supply.empty
+        else {}
+    )
 
     def _get(region, metric):
         return latest.at[region, metric] if metric in latest and region in latest.index else float("nan")
@@ -164,7 +192,8 @@ def evaluate(kb: KBWeekly, config: SignalConfig | None = None) -> pd.DataFrame:
 
         jeonse_state = _jeonse_state(js, c) if pd.notna(js) else "—"
         demand_state = _demand_state(bd, c) if pd.notna(bd) else "—"
-        signal, reasons = _classify(js, bs, bd, jeonse_state, sale_mom, c)
+        sp = sp_map.get(region, float("nan"))
+        signal, reasons = _classify(js, bs, bd, jeonse_state, sale_mom, c, sp)
 
         rows.append(
             {
@@ -178,6 +207,7 @@ def evaluate(kb: KBWeekly, config: SignalConfig | None = None) -> pd.DataFrame:
                 f"매매{c.momentum_weeks}주": round(sale_avg, 3) if pd.notna(sale_avg) else None,
                 "매매모멘텀": sale_mom,
                 f"전세{c.momentum_weeks}주": round(jeonse_avg, 3) if pd.notna(jeonse_avg) else None,
+                "공급압력": round(sp, 2) if pd.notna(sp) else None,
                 "근거": " · ".join(reasons),
             }
         )

@@ -31,7 +31,7 @@ def _kb():
 
 @lru_cache(maxsize=1)
 def _signals_df():
-    return evaluate(_kb(), SignalConfig())
+    return evaluate(_kb(), SignalConfig(), store.load_supply())
 
 
 @app.get("/", response_class=HTMLResponse)

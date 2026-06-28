@@ -72,6 +72,21 @@ def test_classify_chart_priority():
     assert _classify(90, 30, 2, "공급우위", "하락", c)[0] == "SELL_RISK"
 
 
+def test_classify_supply_glut():
+    c = SignalConfig()
+    # 공급과잉 + 매매하락 → SELL_RISK (입주폭탄)
+    sig, reasons = _classify(120, 40, 3, "보통", "하락", c, supply=1.8)
+    assert sig == "SELL_RISK"
+    assert any("공급과잉" in r for r in reasons)
+    # 공급과잉 + 매수 시그널 → 유지하되 입주부담 경고
+    sig, reasons = _classify(180, 75, 12, "전세난", "상승", c, supply=1.5)
+    assert sig == "STRONG_BUY"
+    assert any("입주부담" in r for r in reasons)
+    # 공급부족 → 근거 표기
+    _, reasons = _classify(130, 40, 3, "보통", "보합", c, supply=0.5)
+    assert any("공급부족" in r for r in reasons)
+
+
 def test_classify_memo_is_reference_only():
     c = SignalConfig()
     # 매수세우위 20↑ 여도 차트 조건 없으면 등급은 NEUTRAL, 근거에만 [참고]로 표기

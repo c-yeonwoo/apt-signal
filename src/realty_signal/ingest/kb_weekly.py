@@ -14,7 +14,7 @@ KB부동산이 매주 공개하는 '주간 시계열' 엑셀을 tidy long DataFr
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -87,6 +87,7 @@ class KBWeekly:
     """파싱된 KB 주간 시계열. `long` 은 (date, region, metric, value) tidy frame."""
 
     long: pd.DataFrame
+    codes: dict = field(default_factory=dict)  # 지역명 → 법정동코드(있으면)
 
     @property
     def regions(self) -> list[str]:

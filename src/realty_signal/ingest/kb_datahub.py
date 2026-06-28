@@ -54,8 +54,11 @@ def _get(path: str, params: dict) -> dict:
     return db["data"]
 
 
-def _change_rows(매매전세코드: str, metric: str, 지역코드: str | None = None) -> list[tuple]:
-    """증감률 엔드포인트 → rows. 지역코드 지정 시 해당 광역의 시군구로 드릴다운."""
+def _change_rows(
+    매매전세코드: str, metric: str, 지역코드: str | None = None, code_sink: dict | None = None
+) -> list[tuple]:
+    """증감률 엔드포인트 → rows. 지역코드 지정 시 해당 광역의 시군구로 드릴다운.
+    code_sink 전달 시 지역명→지역코드(법정동코드) 매핑을 채운다."""
     params = {"월간주간구분코드": _WEEKLY, "매물종별구분": "01", "매매전세코드": 매매전세코드}
     if 지역코드:
         params["지역코드"] = 지역코드
@@ -64,6 +67,8 @@ def _change_rows(매매전세코드: str, metric: str, 지역코드: str | None 
     rows = []
     for rec in data["데이터리스트"]:
         region = rec["지역명"]
+        if code_sink is not None:
+            code_sink[region] = rec.get("지역코드")
         for i, v in enumerate(rec["dataList"]):
             if v is not None and i < len(dates):
                 rows.append((dates[i], region, metric, float(v)))
@@ -77,6 +82,7 @@ def fetch(expand_sudogwon: bool = True) -> KBWeekly:
     (증감률만; 매수우위/전세수급은 광역 단위라 구단위 미제공).
     """
     rows: list[tuple] = []
+    codes: dict[str, str] = {}
 
     # 24개 광역: 매수우위지수·매수세우위·전세수급지수
     for menu, key_map in _TREND.items():
@@ -90,17 +96,17 @@ def fetch(expand_sudogwon: bool = True) -> KBWeekly:
                     if v is not None:
                         rows.append((date, region, metric, float(v)))
 
-    # 24개 광역: 매매·전세 증감률
+    # 24개 광역: 매매·전세 증감률 (+ 지역코드 수집)
     for code, metric in _CHANGE.items():
-        rows += _change_rows(code, metric)
+        rows += _change_rows(code, metric, code_sink=codes)
 
     # 수도권 시군구 증감률 드릴다운
     if expand_sudogwon:
         for 지역코드 in _SUDOGWON:
             for code, metric in _CHANGE.items():
-                rows += _change_rows(code, metric, 지역코드)
+                rows += _change_rows(code, metric, 지역코드, code_sink=codes)
 
     long = pd.DataFrame(rows, columns=["date", "region", "metric", "value"])
     # 시군구가 광역과 이름이 겹치지 않으나, 혹시 모를 중복(date·region·metric) 제거
     long = long.drop_duplicates(subset=["date", "region", "metric"], keep="last")
-    return KBWeekly(long=long)
+    return KBWeekly(long=long, codes=codes)
