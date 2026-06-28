@@ -30,6 +30,12 @@ import pandas as pd
 
 from realty_signal.ingest.kb_weekly import KBWeekly
 
+# 서울 한강 이남/이북 권역 (KB 강남11개구/강북14개구 수급 상속용)
+_SEOUL_GANGNAM = {"양천구", "강서구", "구로구", "금천구", "영등포구", "동작구",
+                  "관악구", "서초구", "강남구", "송파구", "강동구"}
+_SEOUL_GANGBUK = {"종로구", "중구", "용산구", "성동구", "광진구", "동대문구", "중랑구",
+                  "성북구", "강북구", "도봉구", "노원구", "은평구", "서대문구", "마포구"}
+
 
 @dataclass
 class SignalConfig:
@@ -220,19 +226,44 @@ def evaluate(
     def _get(region, metric):
         return latest.at[region, metric] if metric in latest and region in latest.index else float("nan")
 
+    have = set(latest.index)
+
+    def _parent(region):
+        """수급·심리 미조사 시군구 → 상위 권역.
+        서울은 KB 강남11개구/강북14개구 권역으로 구분 상속, 그 외 광역(경기/인천)."""
+        if region in ("서울", "경기", "인천", "강남11개구", "강북14개구"):
+            return None
+        if region in _SEOUL_GANGNAM and "강남11개구" in have:
+            return "강남11개구"
+        if region in _SEOUL_GANGBUK and "강북14개구" in have:
+            return "강북14개구"
+        code = (kb.codes or {}).get(region, "") or ""
+        return {"11": "서울", "41": "경기", "28": "인천"}.get(code[:2])
+
     rows = []
     for region in latest.index:
         js = _get(region, "jeonse_supply")
-        bd = _get(region, "buyer_demand")        # 매수세우위(raw) — 사다리/시그널 트리거
-        bs = _get(region, "buyer_superiority")   # 매수우위지수 — 참고용(별개)
+        bd = _get(region, "buyer_demand")        # 매수세우위(raw)
+        bs = _get(region, "buyer_superiority")   # 매수우위지수
         sale_avg, sale_mom = _momentum(kb.series(region, "sale_change"), c)
         jeonse_avg, _ = _momentum(kb.series(region, "jeonse_change"), c)
+
+        # 시군구는 수급·심리 미조사 → 상위 광역값 상속 (자체 매매모멘텀과 결합)
+        inherited_from = None
+        if pd.isna(js):
+            p = _parent(region)
+            if p and pd.notna(_get(p, "jeonse_supply")):
+                js, bd, bs = _get(p, "jeonse_supply"), _get(p, "buyer_demand"), _get(p, "buyer_superiority")
+                inherited_from = p
 
         jeonse_state = _jeonse_state(js, c) if pd.notna(js) else "—"
         demand_state = _demand_state(bd, c) if pd.notna(bd) else "—"
         sp = sp_map.get(region, float("nan"))
         signal, reasons = _classify(js, bs, bd, jeonse_state, sale_mom, c, sp)
         해설 = interpret(signal, jeonse_state, bs, demand_state, sale_mom, sp, c)
+        if inherited_from:
+            reasons.append(f"※수급·심리는 {inherited_from} 광역 기준")
+            해설 = f"({inherited_from} 광역 수급 + {region} 매매흐름) " + 해설
 
         rows.append(
             {
