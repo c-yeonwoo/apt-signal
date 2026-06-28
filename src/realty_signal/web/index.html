@@ -110,9 +110,9 @@
     <span>아파트 시그널맵</span>
   </h1>
   <div class="tabs">
-    <button class="tab on" data-tab="signal" onclick="switchTab('signal')">📊 시그널</button>
-    <button class="tab" data-tab="auction" onclick="switchTab('auction')">🔨 경매</button>
-    <button class="tab" data-tab="undervalued" onclick="switchTab('undervalued')">💎 저평가</button>
+    <button class="tab on" data-tab="signal" onclick="switchTab('signal')">시그널</button>
+    <button class="tab" data-tab="auction" onclick="switchTab('auction')">경매</button>
+    <button class="tab" data-tab="undervalued" onclick="switchTab('undervalued')">저평가</button>
   </div>
   <div class="right">
     <span class="date" id="date"></span>
@@ -151,11 +151,11 @@
 <!-- 경매 탭 -->
 <div id="view-auction" style="display:none">
   <div class="sec">
-    <h3>🔥 BUY+ 시그널 지역 (이 지역 매물을 탐색하세요)</h3>
+    <h3>BUY+ 시그널 지역 (이 지역 매물을 탐색하세요)</h3>
     <div class="hot" id="hotRegions"></div>
   </div>
   <div class="sec">
-    <h3>⚙️ 입찰가 계산 기준 <span class="pill">공식 조정 가능</span></h3>
+    <h3>입찰가 계산 기준 <span class="pill">공식 조정 가능</span></h3>
     <div class="params">
       <label>목표 시세차익률 % <input id="pMargin" type="number" value="10" step="1" oninput="loadAuction()"></label>
       <label>대출비율 % <input id="pLoan" type="number" value="70" step="5" oninput="loadAuction()"></label>
@@ -168,11 +168,11 @@
     </div>
   </div>
   <div class="sec">
-    <h3>🎯 경매 전략 (입찰기일 기준)</h3>
+    <h3>경매 전략 (입찰기일 기준)</h3>
     <div class="strat" id="strat"></div>
   </div>
   <div class="sec">
-    <h3>📋 관심 매물 — 우선순위순</h3>
+    <h3>관심 매물 — 우선순위순</h3>
     <p style="color:var(--dim);font-size:12px;margin:-4px 0 8px">행을 클릭하면 낙찰가율별 민감도 표·비용분해가 열립니다.</p>
     <table>
       <thead><tr>
@@ -189,7 +189,7 @@
 <!-- 저평가 탭 -->
 <div id="view-undervalued" style="display:none">
   <div class="sec">
-    <h3>💎 저평가 지역 추천 — 입지(교통·학군·환경) 대비 가격</h3>
+    <h3>저평가 지역 추천 — 입지(교통·학군·환경) 대비 가격</h3>
     <p style="color:var(--dim);font-size:12px;margin:-2px 0 0">
       업무지구(강남·광화문·여의도) 대중교통 소요시간 + 학원밀도 + 주거환경(공원·하천·마트)으로 <b>입지점수</b>를 만들고,
       입지 대비 실제 평단가가 낮을수록 <b>저평가</b>. 산점도 회귀선(적정가) 아래 점이 저평가 지역입니다.
@@ -293,7 +293,7 @@ function showUvHaesol(region){
   const uv = r['저평가도'];
   const txt = (r['해설']||'').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
   document.getElementById('uvHaesol').innerHTML =
-    `💡 <b>${region}</b> <span style="color:${uv>=0?'#4ade80':'#f87171'}">저평가도 ${uv>0?'+':''}${uv}%</span> · ${txt}`;
+    `<b>${region}</b> <span style="color:${uv>=0?'#4ade80':'#f87171'}">저평가도 ${uv>0?'+':''}${uv}%</span> · ${txt}`;
 }
 function drawUvScatter(rows){
   if(!uvChart) uvChart = echarts.init(document.getElementById('uvchart'), 'dark');
@@ -308,7 +308,7 @@ function drawUvScatter(rows){
       ? `<b>${p.data.name}</b><br/>입지점수 ${p.data.value[0]} · 평단 ${won(p.data.value[1])}/평<br/>저평가도 ${p.data.uv>0?'+':''}${p.data.uv}%` : '적정가(입지 기준 회귀선)'},
     grid:{left:64, right:30, top:30, bottom:44},
     graphic:[{type:'text', right:30, top:6, style:{
-      text:'🟢 저평가(회귀선 아래)   🔴 고평가(위)   ┈ 적정가', fill:'#8b93a7', fontSize:11}}],
+      text:'저평가(초록) · 고평가(빨강) · ┈ 적정가', fill:'#8b93a7', fontSize:11}}],
     xAxis:{name:'입지점수 →', nameLocation:'middle', nameGap:26, type:'value', min:0, max:100, splitLine:{lineStyle:{opacity:.08}}},
     yAxis:{name:'평단가(만원/평)', type:'value', splitLine:{lineStyle:{opacity:.08}}},
     series:[
@@ -436,7 +436,7 @@ function reasonGraphic(region, sig){
   return [{ type:'group', left:56, top:30, z:100, silent:true, children:[
     {type:'rect', shape:{width:W, height:H, r:8}, style:{fill:'rgba(15,17,21,0.88)', stroke:'#2b3340', lineWidth:1}},
     {type:'text', left:12, top:9, style:{text:head, fill:SIGCOLOR[sig.signal]||'#fff', font:'bold 14px sans-serif'}},
-    {type:'text', left:12, top:34, style:{text:'💡 '+lines.join('\n'), fill:'#dbe2ee', fontSize:12, lineHeight:18}},
+    {type:'text', left:12, top:34, style:{text:lines.join('\n'), fill:'#dbe2ee', fontSize:12, lineHeight:18}},
   ]}];
 }
 function drawChart(region, m, sig){
@@ -555,7 +555,7 @@ function renderStrategy(rows){
     card('이번 주 입찰(7일내)', wk.length+'건', wk.map(r=>r['단지명']).slice(0,3).join(', ')||'없음') +
     card('2주 내 입찰', wk2.length+'건', wk2.map(r=>r['단지명']).slice(0,3).join(', ')||'없음') +
     card('목표달성 매물', profit.length+'건', `전체 ${rows.length}건 중`) +
-    card('🥇 최우선 단지', top?top['단지명']:'–',
+    card('최우선 단지', top?top['단지명']:'–',
          top?`${top['region']} · 권장 ${won(top['권장입찰가'])} · 차익률 ${top['시세차익률']}%`:'매물을 등록하세요');
 }
 
