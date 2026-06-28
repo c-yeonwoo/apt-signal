@@ -42,6 +42,9 @@ _CHANGE = {"01": "sale_change", "02": "jeonse_change"}
 # 나머지 지방은 24개 광역 단위 현상유지.
 _SUDOGWON = {"1100000000": "서울", "4100000000": "경기", "2800000000": "인천"}
 
+# 지방 개별 추가: {광역 지역코드: {유지할 시군구명}} — 해당 광역을 드릴다운하되 지정 시군구만 보존.
+_EXTRA = {"4600000000": {"순천시"}}  # 전남 순천시
+
 
 def _get(path: str, params: dict) -> dict:
     url = _BASE + path + "?" + urllib.parse.urlencode(params)
@@ -105,6 +108,16 @@ def fetch(expand_sudogwon: bool = True) -> KBWeekly:
         for 지역코드 in _SUDOGWON:
             for code, metric in _CHANGE.items():
                 rows += _change_rows(code, metric, 지역코드, code_sink=codes)
+
+    # 지방 개별 추가(전남 순천시 등) — 광역 드릴다운 후 지정 시군구만 보존
+    for 지역코드, keep in _EXTRA.items():
+        for code, metric in _CHANGE.items():
+            tmp: dict[str, str] = {}
+            all_rows = _change_rows(code, metric, 지역코드, code_sink=tmp)
+            rows += [r for r in all_rows if r[1] in keep]
+            for r in keep:
+                if r in tmp:
+                    codes[r] = tmp[r]
 
     long = pd.DataFrame(rows, columns=["date", "region", "metric", "value"])
     # 시군구가 광역과 이름이 겹치지 않으나, 혹시 모를 중복(date·region·metric) 제거

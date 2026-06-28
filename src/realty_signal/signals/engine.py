@@ -238,7 +238,7 @@ def evaluate(
         if region in _SEOUL_GANGBUK and "강북14개구" in have:
             return "강북14개구"
         code = (kb.codes or {}).get(region, "") or ""
-        return {"11": "서울", "41": "경기", "28": "인천"}.get(code[:2])
+        return {"11": "서울", "41": "경기", "28": "인천", "46": "전남"}.get(code[:2])
 
     rows = []
     for region in latest.index:
