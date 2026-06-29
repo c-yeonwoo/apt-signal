@@ -517,6 +517,23 @@ async function loadPresale(){
   _presaleList = await (await fetch('/api/presale')).json();
   renderPresale();
 }
+// 주소에서 지역 컬럼(시도+시군구)에 이미 보이는 부분 제거 → 동·번지 등 세부만
+function subAddr(addr, region){
+  if(!addr) return '–';
+  const regToks = (region||'').split(/\s+/);
+  const toks = addr.split(/\s+/).filter(t =>
+    !/(특별자치시|특별자치도|특별시|광역시|도)$/.test(t) && !regToks.includes(t));
+  return toks.join(' ') || addr;
+}
+// 청약 진행상태 배지 (라이프사이클 색상)
+function psStatusBadge(g){
+  if(!g) return '–';
+  const green=['특별공급','1순위','2순위','분양중','무순위','접수'];  // 진행중
+  const gray=['당첨','계약','완료'];                                  // 마감단계
+  let col = green.some(k=>g.includes(k)) ? '#4ade80'
+          : gray.some(k=>g.includes(k)) ? '#94a3b8' : '#60a5fa';     // 그 외=예정(blue)
+  return `<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;background:${col}22;color:${col};border:1px solid ${col}55">${g}</span>`;
+}
 function renderPresale(){
   const buyOnly = document.getElementById('psBuyOnly').checked;
   const redev = document.getElementById('psRedev').checked;
@@ -533,8 +550,8 @@ function renderPresale(){
     tr.innerHTML = `<td class="l">${r['단지명']} ${r['정비사업']?'<span class="pill">정비</span>':''}</td>
       <td class="l">${r['지역']||''} ${r['시그널']?badge(r['시그널']):''}</td>
       <td>${regionGradeBadge(r['지역급지'], r['지역평단가'])}</td>
-      <td class="l" style="color:var(--dim)">${r['주소']||''}</td>
-      <td class="l">${r['구분']||''}</td><td class="l">${sched}</td><td class="l">${r['입주']||'–'}</td>
+      <td class="l" style="color:var(--dim)">${subAddr(r['주소'], r['지역'])}</td>
+      <td class="l">${psStatusBadge(r['구분'])}</td><td class="l">${sched}</td><td class="l">${r['입주']||'–'}</td>
       <td>${r['총세대']??'–'}</td><td>${price}</td>`;
     tb.appendChild(tr);
   });
