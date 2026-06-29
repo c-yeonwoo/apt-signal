@@ -299,14 +299,17 @@
   <h2 style="margin:0 0 4px">종합 추천 — 가용자본으로 어디를 살까</h2>
   <p style="color:var(--dim);font-size:13px;margin:0 0 14px">매수 시그널(STRONG_BUY/BUY) 지역 × 저평가도 × 단지급지를 종합해 매수가능 범위 내 우선순위를 매깁니다. 경매·청약은 "그 지역에 N건" 포인터로 첨부.</p>
   <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;background:#0f1115;border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:16px">
-    <label>가용자본(자기자본)<br><input id="ccCapital" type="number" value="30000" style="width:130px"> <span style="color:var(--dim)">만원</span></label>
-    <label>대출비율(LTV)<br><input id="ccLtv" type="number" value="70" min="0" max="90" style="width:80px"> %</label>
+    <label>가용자본(자기자본)<br><input id="ccCapital" type="number" value="30000" style="width:120px"> <span style="color:var(--dim)">만원</span></label>
+    <label>대출비율(LTV)<br><input id="ccLtv" type="number" value="70" min="0" max="90" style="width:70px"> %</label>
+    <label>연소득<br><input id="ccIncome" type="number" placeholder="선택(DSR)" style="width:110px"> <span style="color:var(--dim)">만원</span></label>
+    <label>대출금리<br><input id="ccRate" type="number" value="4.0" step="0.1" style="width:64px"> %</label>
     <label>기준 평형<br><select id="ccPyeong" style="background:#0f1115;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:6px">
       <option value="17.4">59㎡(24평)</option><option value="25.7" selected>84㎡(34평)</option><option value="35.4">114㎡(45평)</option>
     </select></label>
     <button class="btn" onclick="loadConclusion()" style="background:var(--accent);color:#000;font-weight:700">분석</button>
     <span id="ccBudget" style="color:var(--dim);font-size:13px"></span>
   </div>
+  <p style="color:var(--dim);font-size:11px;margin:-8px 0 12px">매수가능가 = 자본 + 대출(LTV·DSR 중 작은 쪽) − 취득세 − 중개비. 연소득 입력 시 DSR 40% 한도 반영.</p>
   <div id="ccCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px"></div>
   <p id="ccEmpty" style="color:var(--dim)"></p>
 </div>
@@ -452,14 +455,20 @@ async function loadConclusion(){
   const capital = +document.getElementById('ccCapital').value || 0;
   const ltv = (+document.getElementById('ccLtv').value || 0) / 100;
   const pyeong = +document.getElementById('ccPyeong').value || 25.7;
+  const income = +document.getElementById('ccIncome').value || 0;
+  const rate = (+document.getElementById('ccRate').value || 4) / 100;
   const box = document.getElementById('ccCards'); const empty = document.getElementById('ccEmpty');
   if(capital <= 0){ box.innerHTML=''; empty.textContent='가용자본을 입력하세요.'; return; }
   empty.textContent='분석 중…'; box.innerHTML='';
-  const d = await (await fetch(`/api/conclusion?capital=${capital}&ltv=${ltv}&pyeong=${pyeong}`)).json();
+  const qs = `capital=${capital}&ltv=${ltv}&pyeong=${pyeong}&rate=${rate}` + (income>0?`&income=${income}`:'');
+  const d = await (await fetch(`/api/conclusion?${qs}`)).json();
   _ccBudget = d.budget; _ccPyeong = pyeong;
   const eok = n => n==null?'–':(n/10000).toFixed(1)+'억';
+  const dt = d.detail || {};
+  const dsrNote = dt['DSR제약'] ? ' <span style="color:#fb923c">·DSR한도 적용</span>' : '';
   document.getElementById('ccBudget').innerHTML =
-    `매수가능 상한 <b style="color:var(--accent)">${eok(d.budget)}</b> (자본 ${eok(d.capital)} + 대출 LTV ${Math.round(d.ltv*100)}%) · 기준 ${pyeong}평`;
+    `매수가능 <b style="color:var(--accent)">${eok(d.budget)}</b> `
+    + `<span style="color:var(--dim)">= 자본 ${eok(d.capital)} + 대출 ${eok(dt['대출'])} − 취득세 ${eok(dt['취득세'])} − 중개 ${eok(dt['중개비'])}</span>${dsrNote} · 기준 ${pyeong}평`;
   const inb = d.cards.filter(c=>c['예산내']);
   empty.textContent = inb.length ? '' : '예산 범위 내 매수 시그널 지역이 없습니다. 자본·LTV·평형을 조정해보세요.';
   d.cards.forEach((c,i)=>{

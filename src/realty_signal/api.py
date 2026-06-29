@@ -339,16 +339,57 @@ def presale_types(manage_no: str):
     return {"관리번호": manage_no, "지역평단가": 지역평단가, "types": types}
 
 
-@app.get("/api/conclusion")
-def conclusion(capital: float, ltv: float = 0.7, pyeong: float = 25.7):
-    """가용자본 → 매수가능가 → BUY+ × 저평가 × 단지급지 종합 추천 리포트.
+_BROKER_RATE = 0.005   # 중개보수(근사)
 
-    capital: 자기자본(만원), ltv: 대출비율, pyeong: 기준 평형(기본 84㎡=25.7평).
-    경매·청약은 랭킹에 섞지 않고 '그 지역에 N건' 포인터로만 첨부.
+
+def _acq_tax_rate(price_manwon: float) -> float:
+    """주택 취득세율(+지방교육세·농특세 근사). 만원 기준. 6억↓ 1.1% / 6~9억 선형 / 9억↑ 3.3%."""
+    억 = price_manwon / 10000
+    base = 0.01 if 억 <= 6 else (억 * 2 / 3 - 3) / 100 if 억 <= 9 else 0.03
+    return base + 0.002
+
+
+def _max_purchase(capital: float, ltv: float, income: float | None, rate: float, years: int = 30):
+    """자기자본으로 살 수 있는 최대 매수가(만원) + 그 가격의 비용분해.
+
+    LTV 한도와 DSR(소득) 한도 중 작은 쪽으로 대출이 제한되고,
+    자기자본 = (매수가 − 대출) + 취득세 + 중개비 를 만족하는 최대가를 이분탐색.
+    """
+    dsr_cap = float("inf")
+    if income and income > 0:
+        n, mr = years * 12, rate / 12
+        ann_per_principal = (mr / (1 - (1 + mr) ** -n)) * 12 if mr else 1 / years
+        dsr_cap = income * 0.40 / ann_per_principal  # DSR 40% 대출한도(만원)
+
+    def need(P):  # 그 가격을 사는 데 필요한 자기자본
+        loan = min(ltv * P, dsr_cap)
+        return P - loan + (_acq_tax_rate(P) + _BROKER_RATE) * P
+
+    lo, hi = 0.0, 5_000_000.0  # 0~500억
+    for _ in range(48):
+        mid = (lo + hi) / 2
+        if need(mid) <= capital:
+            lo = mid
+        else:
+            hi = mid
+    P = round(lo)
+    loan = round(min(ltv * P, dsr_cap))
+    return P, {"대출": loan, "취득세": round(_acq_tax_rate(P) * P),
+               "중개비": round(_BROKER_RATE * P), "자기자본": round(capital),
+               "DSR제약": bool(income and loan < round(ltv * P))}
+
+
+@app.get("/api/conclusion")
+def conclusion(capital: float, ltv: float = 0.7, pyeong: float = 25.7,
+               income: float | None = None, rate: float = 0.04, years: int = 30):
+    """가용자본 → (LTV+DSR+취득세 반영) 매수가능가 → BUY+ × 저평가 × 단지급지 종합 추천.
+
+    capital: 자기자본(만원), income: 연소득(만원, DSR용·선택), rate: 대출금리, years: 만기.
+    경매·급매·청약은 랭킹에 섞지 않고 '그 지역 N건'으로 카드에 첨부.
     """
     from collections import defaultdict
 
-    budget = round(capital / max(1 - ltv, 0.05))  # 매수가능 상한(만원, 자본+대출)
+    budget, budget_detail = _max_purchase(capital, ltv, income, rate, years)
     sig = _signal_map()
     loc = store.load_localities()
     locmap = {}
@@ -410,7 +451,8 @@ def conclusion(capital: float, ltv: float = 0.7, pyeong: float = 25.7):
         })
     # 예산 내 우선 → 점수순
     cards.sort(key=lambda c: (c["예산내"], c["_score"]), reverse=True)
-    return {"budget": budget, "pyeong": pyeong, "ltv": ltv, "capital": capital, "cards": cards}
+    return {"budget": budget, "pyeong": pyeong, "ltv": ltv, "capital": capital,
+            "income": income, "detail": budget_detail, "cards": cards}
 
 
 QUICKSALE_FILE = store.CACHE_DIR / "quicksale.json"
