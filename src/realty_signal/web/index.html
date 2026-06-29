@@ -62,7 +62,7 @@
   .row.lv1 { padding-left:22px; } .row.lv2 { padding-left:38px; }
   .zsw { font-size:11px; padding:2px 8px; border-radius:10px; cursor:help; color:#0f1115; font-weight:600; }
   /* 경매 */
-  #view-auction, #view-undervalued, #view-presale, #view-conclusion { padding:16px 20px; height:calc(100vh - 52px); overflow:auto; }
+  #view-auction, #view-undervalued, #view-presale, #view-conclusion, #view-quicksale { padding:16px 20px; height:calc(100vh - 52px); overflow:auto; }
   .sec { margin-bottom:18px; }
   .sec h3 { font-size:14px; margin:0 0 8px; color:#cbd5e1; }
   .hot { display:flex; gap:6px; flex-wrap:wrap; }
@@ -113,6 +113,7 @@
     <button class="tab on" data-tab="signal" onclick="switchTab('signal')">시그널</button>
     <button class="tab" data-tab="undervalued" onclick="switchTab('undervalued')">저평가</button>
     <button class="tab" data-tab="auction" onclick="switchTab('auction')">경매</button>
+    <button class="tab" data-tab="quicksale" onclick="switchTab('quicksale')">급매</button>
     <button class="tab" data-tab="presale" onclick="switchTab('presale')">청약</button>
     <button class="tab" data-tab="conclusion" onclick="switchTab('conclusion')">결론</button>
   </div>
@@ -253,6 +254,27 @@
   </div>
 </div>
 
+<div id="view-quicksale" style="display:none">
+  <h2 style="margin:0 0 4px">급매 레이더 <span style="font-size:12px;color:var(--dim);font-weight:400">개인용 · 로컬 확인</span></h2>
+  <p style="color:var(--dim);font-size:13px;margin:0 0 6px">시세(중위호가) 대비 싸게 나온 매물을 지역별로 모읍니다. 급매갭 = (호가−중위시세)/중위시세, 음수가 클수록 저가.</p>
+  <p style="color:#fb923c;font-size:11px;margin:0 0 12px">⚠ 출처는 네이버 부동산 매물(baroezip 공개 API 경유). 개인 참고용이며 재배포/상업이용 금지.</p>
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+    <button class="btn" onclick="refreshQuicksale()" id="qsBtn" style="background:var(--accent);color:#000;font-weight:700">BUY+ 지역 급매 스캔</button>
+    <label>특정 지역만 <select id="qsRegion" style="background:#0f1115;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:5px"><option value="">— BUY+ 전체 —</option></select></label>
+    <label>최소 급매갭 <select id="qsGap" onchange="renderQuicksale()" style="background:#0f1115;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:5px">
+      <option value="0">전체</option><option value="-3">-3% 이하</option><option value="-5" selected>-5% 이하</option><option value="-8">-8% 이하</option><option value="-10">-10% 이하</option></select></label>
+    <span id="qsStatus" style="color:var(--dim);font-size:12px"></span>
+  </div>
+  <table>
+    <thead><tr>
+      <th class="l">단지명</th><th class="l">지역</th><th>시그널</th><th>평형</th><th>층/향</th>
+      <th>호가</th><th>중위시세</th><th>급매갭</th><th>세대</th><th>연식</th>
+    </tr></thead>
+    <tbody id="qsRows"></tbody>
+  </table>
+  <p id="qsEmpty" style="color:var(--dim)"></p>
+</div>
+
 <div id="view-conclusion" style="display:none">
   <h2 style="margin:0 0 4px">종합 추천 — 가용자본으로 어디를 살까</h2>
   <p style="color:var(--dim);font-size:13px;margin:0 0 14px">매수 시그널(STRONG_BUY/BUY) 지역 × 저평가도 × 단지급지를 종합해 매수가능 범위 내 우선순위를 매깁니다. 경매·청약은 "그 지역에 N건" 포인터로 첨부.</p>
@@ -347,13 +369,63 @@ function regionGradeBadge(g, pyeong){
 function switchTab(t){
   document.body.className = 'tab-'+t;
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on', b.dataset.tab===t));
-  ['signal','auction','undervalued','presale','conclusion'].forEach(v=>
+  ['signal','auction','undervalued','presale','conclusion','quicksale'].forEach(v=>
     document.getElementById('view-'+v).style.display = v===t?'':'none');
   if(t==='signal') chart.resize();
   if(t==='auction') loadAuction();
   if(t==='undervalued') loadUndervalued();
   if(t==='presale') loadPresale();
   if(t==='conclusion') loadConclusion();
+  if(t==='quicksale') loadQuicksale();
+}
+let _qsList=[];
+async function loadQuicksale(){
+  // 지역 셀렉트 채우기(BUY+ 지역)
+  const sel=document.getElementById('qsRegion');
+  if(sel.options.length<=1){
+    try{
+      const buy=await (await fetch('/api/auction/buy-regions')).json();
+      buy.forEach(b=>{const o=document.createElement('option');o.value=b.region;o.textContent=`${b.region} (${b.signal})`;sel.appendChild(o);});
+    }catch(e){}
+  }
+  const d=await (await fetch('/api/quicksale')).json();
+  _qsList = d.listings||[];
+  document.getElementById('qsStatus').textContent = d.ready
+    ? `${d.count}건 (스캔 지역 ${d.regions?.length||0}곳)` : '아직 스캔 안 됨 — 버튼을 눌러 수집하세요.';
+  renderQuicksale();
+}
+async function refreshQuicksale(){
+  const btn=document.getElementById('qsBtn'); const region=document.getElementById('qsRegion').value;
+  btn.disabled=true; const o=btn.textContent;
+  btn.textContent = region ? `${region} 스캔 중…` : 'BUY+ 전체 스캔 중… (수십초)';
+  try{
+    const body = region ? {regions:[region]} : {};
+    const r = await (await fetch('/api/quicksale/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+    await loadQuicksale();
+  }catch(e){ document.getElementById('qsStatus').textContent='스캔 실패: '+e; }
+  btn.disabled=false; btn.textContent=o;
+}
+function renderQuicksale(){
+  const minGap = +document.getElementById('qsGap').value || 0;
+  const rows = _qsList.filter(m=> minGap===0 || (m['급매갭']!=null && m['급매갭']<=minGap));
+  const tb=document.getElementById('qsRows'); tb.innerHTML='';
+  document.getElementById('qsEmpty').textContent = rows.length?'':'조건에 맞는 급매가 없습니다. (스캔 먼저 / 갭 기준 완화)';
+  const eok = n => n==null?'–':(n/10000).toFixed(1)+'억';
+  rows.forEach(m=>{
+    const tr=document.createElement('tr');
+    const g=m['급매갭'];
+    tr.innerHTML = `<td class="l">${m['단지명']||'–'}</td>
+      <td class="l">${m['지역']||''}</td>
+      <td>${m['시그널']?badge(m['시그널']):'–'}</td>
+      <td>${m['평형']?m['평형']+'평':'–'}</td>
+      <td>${m['층']??'–'}층 ${m['방향']||''}</td>
+      <td>${eok(m['호가'])}</td>
+      <td style="color:var(--dim)">${eok(m['중위시세'])}</td>
+      <td style="color:${g<=-8?'#ef4444':g<0?'#fb923c':'var(--dim)'};font-weight:700">${g!=null?g+'%':'–'}</td>
+      <td>${m['세대수']?m['세대수'].toLocaleString():'–'}</td>
+      <td>${m['연식']||'–'}</td>`;
+    tb.appendChild(tr);
+  });
 }
 let _ccBudget=0, _ccPyeong=25.7;
 async function loadConclusion(){

@@ -335,6 +335,72 @@ def conclusion(capital: float, ltv: float = 0.7, pyeong: float = 25.7):
     return {"budget": budget, "pyeong": pyeong, "ltv": ltv, "capital": capital, "cards": cards}
 
 
+QUICKSALE_FILE = store.CACHE_DIR / "quicksale.json"
+REGION_GEO_FILE = store.CACHE_DIR / "region_geo.json"
+
+
+def _region_centroid(region: str, code: str) -> tuple[float, float] | None:
+    """시군구 중심좌표 (geocode 결과 캐시)."""
+    geo = {}
+    if REGION_GEO_FILE.exists():
+        geo = json.loads(REGION_GEO_FILE.read_text(encoding="utf-8"))
+    if region in geo:
+        return tuple(geo[region]) if geo[region] else None
+    from realty_signal.ingest.locality import geocode
+    c = geocode(region, code)
+    geo[region] = list(c) if c else None
+    REGION_GEO_FILE.write_text(json.dumps(geo, ensure_ascii=False), encoding="utf-8")
+    return c
+
+
+def _radar_scan(regions: list[str]) -> list[dict]:
+    """급매 레이더 — 지역별 baroezip 공개 spatialmarket 조회 → 급매 매물 + 지역 시그널."""
+    from realty_signal.ingest.baroezip import bbox_around, fetch_market
+
+    codes = _kb().codes
+    sig = _signal_map()
+    seen, out = set(), []
+    for region in regions:
+        code = codes.get(region, "")
+        c = _region_centroid(region, code)
+        if not c:
+            continue
+        for m in fetch_market(*bbox_around(c[0], c[1])):
+            if not m["급매"]:
+                continue
+            key = (m["complex_no"], m["평형"], m["층"])
+            if key in seen:
+                continue
+            seen.add(key)
+            m["지역"] = region
+            m["시그널"] = sig.get(region, "")
+            out.append(m)
+    out.sort(key=lambda m: m["급매갭"] if m["급매갭"] is not None else 0)
+    return out
+
+
+@app.get("/api/quicksale")
+def quicksale():
+    """급매 레이더 결과 (캐시). 개인용 — baroezip 공개 API 기반."""
+    if QUICKSALE_FILE.exists():
+        return json.loads(QUICKSALE_FILE.read_text(encoding="utf-8"))
+    return {"ready": False, "listings": [], "regions": []}
+
+
+@app.post("/api/quicksale/refresh")
+def quicksale_refresh(data: dict = Body(default={})):
+    """급매 레이더 갱신. body {regions:[...]} 없으면 BUY+ 시그널 지역 전체 스캔."""
+    regions = data.get("regions")
+    if not regions:
+        df = _signals_df()
+        regions = list(df[df["signal"].isin(["STRONG_BUY", "BUY"])]["region"])
+    listings = _radar_scan(regions)
+    result = {"ready": True, "listings": listings, "regions": regions,
+              "count": len(listings)}
+    QUICKSALE_FILE.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
+    return {"ok": True, "count": len(listings), "regions": len(regions)}
+
+
 @app.get("/api/regime")
 def regime():
     """수도권 급지역전 국면(유동성 신호등). regions 상세는 제외하고 요약만."""
