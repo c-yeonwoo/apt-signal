@@ -23,6 +23,8 @@ _NOW_Y = 2026
 
 
 def _zone_type(sclsf: str) -> str:
+    if "재정비촉진" in sclsf:
+        return "뉴타운"
     if "재건축" in sclsf:
         return "재건축"
     if "재개발" in sclsf:
@@ -42,29 +44,30 @@ def _f(s) -> float:
 
 
 def fetch_zones(seoul_key: str, limit: int = 3000) -> list[dict]:
-    """서울 정비구역 목록 (재건축/재개발 구분). 구역명+위치 기준 최신 1건만."""
+    """서울 정비구역(재건축/재개발/도시환경) + 재정비촉진(뉴타운) 목록. 구역명+위치 기준 최신 1건만."""
     seen: dict = {}
-    for start in range(1, limit + 1, 1000):
-        end = min(start + 999, limit)
-        url = f"{_UPIS}/{seoul_key}/xml/upisRebuild/{start}/{end}/"
-        try:
-            root = ET.fromstring(urllib.request.urlopen(  # noqa: S310
-                urllib.request.Request(url, headers=_HDR), timeout=30).read())
-        except Exception:
-            break
-        rows = list(root.iter("row"))
-        if not rows:
-            break
-        for r in rows:
-            sclsf = r.findtext("SCLSF") or ""
-            z = {
-                "구역명": (r.findtext("RGN_NM") or "").strip(),
-                "위치": (r.findtext("PSTN_NM") or "").strip(),
-                "구분": _zone_type(sclsf),
-                "세부": sclsf,
-                "면적": round(_f(r.findtext("AREA_CHG_AFTR")) or _f(r.findtext("AREA_EXS"))),
-            }
-            seen[(z["구역명"], z["위치"])] = z
+    for ep, cap in (("upisRebuild", limit), ("upisNewtown", 1000)):
+        for start in range(1, cap + 1, 1000):
+            end = min(start + 999, cap)
+            url = f"{_UPIS}/{seoul_key}/xml/{ep}/{start}/{end}/"
+            try:
+                root = ET.fromstring(urllib.request.urlopen(  # noqa: S310
+                    urllib.request.Request(url, headers=_HDR), timeout=30).read())
+            except Exception:
+                break
+            rows = list(root.iter("row"))
+            if not rows:
+                break
+            for r in rows:
+                sclsf = r.findtext("SCLSF") or ""
+                z = {
+                    "구역명": (r.findtext("RGN_NM") or "").strip(),
+                    "위치": (r.findtext("PSTN_NM") or "").strip(),
+                    "구분": _zone_type(sclsf),
+                    "세부": sclsf,
+                    "면적": round(_f(r.findtext("AREA_CHG_AFTR")) or _f(r.findtext("AREA_EXS"))),
+                }
+                seen[(z["구역명"], z["위치"])] = z
     return list(seen.values())
 
 
