@@ -30,6 +30,17 @@ def fetch_presale() -> list[dict]:
     req = urllib.request.Request(url, headers={"User-Agent": _UA})
     with urllib.request.urlopen(req, timeout=30) as r:  # noqa: S310
         data = json.load(r)["dataBody"]["data"]
+    def _manwon(v):
+        """분양가 → 만원 정규화. KB는 원 단위(예: 945730000=9.46억)로 주므로 ÷10000.
+        간혹 만원 단위(수만~수십만)도 섞일 수 있어 큰 값만 원으로 간주."""
+        try:
+            n = float(v)
+        except (TypeError, ValueError):
+            return None
+        if n <= 0:
+            return None
+        return round(n / 10000) if n >= 1_000_000 else round(n)
+
     out = []
     for d in data.get("데이터", []):
         nm = d.get("단지명", "")
@@ -43,8 +54,8 @@ def fetch_presale() -> list[dict]:
             "입주": d.get("입주일정", ""),
             "일반세대": d.get("일반세대수"),
             "총세대": d.get("총세대수"),
-            "최저분양가": d.get("최저분양가") or None,
-            "최대분양가": d.get("최대분양가") or None,
+            "최저분양가": _manwon(d.get("최저분양가")),
+            "최대분양가": _manwon(d.get("최대분양가")),
             "정비사업": ("재건축" in nm or "재개발" in nm or "정비사업" in nm or "구역" in nm),
             "lat": d.get("wgs84중심위도"),
             "lng": d.get("wgs84중심경도"),

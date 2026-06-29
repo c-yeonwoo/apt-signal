@@ -374,9 +374,7 @@ async function loadConclusion(){
     const af = c['예산내'];
     const uv = c['저평가도'];
     const haesol = (c['해설']||'').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
-    const ptrs = [];
-    if(c['경매건수']) ptrs.push(`<span class="pill" style="cursor:pointer" onclick="switchTab('auction')">경매 ${c['경매건수']}건</span>`);
-    if(c['청약건수']) ptrs.push(`<span class="pill" style="cursor:pointer" onclick="switchTab('presale')">청약 ${c['청약건수']}건</span>`);
+    const subs = renderSubListings(c['경매단지']||[], c['청약단지']||[]);
     const card = document.createElement('div');
     card.style.cssText = `border:1px solid ${af?'var(--accent)':'var(--line)'};border-radius:10px;padding:14px 16px;background:#0f1115;${af?'':'opacity:.55'}`;
     card.innerHTML = `
@@ -394,11 +392,33 @@ async function loadConclusion(){
       ${haesol?`<div style="font-size:12px;color:var(--dim);line-height:1.5;margin-bottom:8px">${haesol}</div>`:''}
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         ${af?`<span class="pill" style="cursor:pointer;border-color:var(--accent);color:var(--accent)" onclick="expandCandidates('${c.region}',this)">예산 내 단지 ▾</span>`:''}
-        ${ptrs.join('')}
       </div>
-      <div class="cc-cands"></div>`;
+      <div class="cc-cands"></div>
+      ${subs}`;
     box.appendChild(card);
   });
+}
+// 결론 카드 인라인 — 이 지역 경매/청약 단지 직접 표시 (급지·가격)
+function renderSubListings(auc, ps){
+  const eok = n => (n==null||n<=0)?'–':(n/10000).toFixed(1)+'억';
+  let h = '';
+  if(auc.length){
+    h += `<div style="margin-top:10px;font-size:11px;color:var(--dim)">경매 매물 ${auc.length}건</div>`
+      + auc.slice(0,4).map(a=>`<div onclick="switchTab('auction')" style="cursor:pointer;display:flex;justify-content:space-between;font-size:12px;padding:2px 0">
+          <span>${gradeBadge(a['단지급지'])} ${a['단지명']}</span>
+          <span>권장 <b>${eok(a['권장입찰가'])}</b>${a['시세차익률']!=null?` <span style="color:${a['시세차익률']>=0?'#4ade80':'#f87171'}">차익 ${a['시세차익률']>0?'+':''}${a['시세차익률']}%</span>`:''}</span>
+        </div>`).join('');
+  }
+  if(ps.length){
+    h += `<div style="margin-top:10px;font-size:11px;color:var(--dim)">청약 단지 ${ps.length}건</div>`
+      + ps.slice(0,4).map(p=>{
+          const price = (p['최저분양가']||p['최대분양가']) ? `${eok(p['최저분양가'])}~${eok(p['최대분양가'])}` : '미정';
+          return `<div onclick="switchTab('presale')" style="cursor:pointer;display:flex;justify-content:space-between;font-size:12px;padding:2px 0">
+            <span>${p['지역급지']?regionGradeBadge(p['지역급지']):''} ${p['단지명']} ${p['정비사업']?'<span class="pill">정비</span>':''}</span>
+            <span>분양 <b>${price}</b></span></div>`;
+        }).join('');
+  }
+  return h;
 }
 // 추천 지역 → 예산 내로 살 수 있는 단지를 급지 높은 순으로 (예산 내 최고 가성비 상급지)
 async function expandCandidates(region, el){

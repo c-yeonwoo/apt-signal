@@ -281,7 +281,7 @@ def conclusion(capital: float, ltv: float = 0.7, pyeong: float = 25.7):
     capital: 자기자본(만원), ltv: 대출비율, pyeong: 기준 평형(기본 84㎡=25.7평).
     경매·청약은 랭킹에 섞지 않고 '그 지역에 N건' 포인터로만 첨부.
     """
-    from collections import Counter
+    from collections import defaultdict
 
     budget = round(capital / max(1 - ltv, 0.05))  # 매수가능 상한(만원, 자본+대출)
     sig = _signal_map()
@@ -290,8 +290,22 @@ def conclusion(capital: float, ltv: float = 0.7, pyeong: float = 25.7):
     if not loc.empty:
         for r in json.loads(loc.to_json(orient="records", force_ascii=False)):
             locmap[r["region"]] = r
-    auc_cnt = Counter(x.region for x in auction.load())
-    ps_cnt = Counter(d["지역"] for d in _presale() if d.get("시그널") in ("STRONG_BUY", "BUY"))
+    # 지역별 경매 매물(권장입찰가·급지) + 청약 단지(분양가·일정) 상세
+    auc_by = defaultdict(list)
+    for e in auction.enrich(auction.load(), sig):
+        auc_by[e["region"]].append({
+            "단지명": e["단지명"], "단지급지": e.get("단지급지"),
+            "권장입찰가": e.get("권장입찰가"), "시세차익률": e.get("시세차익률"),
+            "전용면적": e.get("전용면적"),
+        })
+    ps_by = defaultdict(list)
+    for d in _presale():
+        if d.get("시그널") in ("STRONG_BUY", "BUY"):
+            ps_by[d["지역"]].append({
+                "단지명": d["단지명"], "지역급지": d.get("지역급지"),
+                "최저분양가": d.get("최저분양가"), "최대분양가": d.get("최대분양가"),
+                "분양시작": d.get("분양시작"), "구분": d.get("구분"), "정비사업": d.get("정비사업"),
+            })
     regions = _regime().get("regions", {})
     rank = {"STRONG_BUY": 2, "BUY": 1}
 
@@ -312,7 +326,8 @@ def conclusion(capital: float, ltv: float = 0.7, pyeong: float = 25.7):
             "region": region, "시그널": s, "평단가": price, "예상매수가": est,
             "예산내": affordable, "저평가도": uv, "입지점수": lr.get("입지점수"),
             "지역급지": rg.get("급지"), "해설": lr.get("해설"),
-            "경매건수": auc_cnt.get(region, 0), "청약건수": ps_cnt.get(region, 0),
+            "경매단지": auc_by.get(region, []), "청약단지": ps_by.get(region, []),
+            "경매건수": len(auc_by.get(region, [])), "청약건수": len(ps_by.get(region, [])),
             "_score": round(score, 1),
         })
     # 예산 내 우선 → 점수순
