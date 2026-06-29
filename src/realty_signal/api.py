@@ -526,6 +526,18 @@ def redev_stages(region: str | None = None):
     return {"region": region or "서울 전체", **rd.stage_summary(_redev_progress(), sgg5)}
 
 
+@app.post("/api/geocode")
+def geocode_ep(data: dict = Body(...)):
+    """단지명/주소 목록 → 좌표 (SQLite 캐시 우선, 미스 일부만 OSM 조회).
+
+    body: {"queries": ["서울 강남구 은마아파트", ...], "max_miss": 20}
+    """
+    from realty_signal.ingest import geocode
+    queries = data.get("queries", [])
+    max_miss = int(data.get("max_miss", 20))
+    return geocode.geocode_batch(queries, max_miss=max_miss)
+
+
 @app.get("/api/redevelopment/value-calc")
 def redev_value_calc(current_price: float, pyeong: float, presale_pyeong_price: float,
                      contribution: float, hold_months: int = 60):

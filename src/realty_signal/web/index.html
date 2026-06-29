@@ -82,6 +82,22 @@
   .zsw-sm { width:15px; height:15px; border-radius:3px; flex:0 0 auto; }
   /* 경매 */
   #view-auction, #view-undervalued, #view-presale, #view-conclusion, #view-quicksale, #view-redev { padding:16px 20px; height:calc(100vh - 52px); overflow:auto; }
+  /* 좌우 분할 지도 뷰 (경매/청약/재건축/급매 공통) */
+  .mapsplit { display:flex; gap:12px; height:calc(100vh - 178px); min-height:420px; }
+  .ms-list { width:46%; min-width:360px; overflow:auto; border:1px solid var(--line); border-radius:12px; background:#0d1014; }
+  .ms-map { flex:1; border-radius:12px; overflow:hidden; border:1px solid var(--line); box-shadow:inset 0 0 0 1px rgba(45,212,191,0.06); }
+  .ms-row { padding:10px 13px; border-bottom:1px solid var(--line); cursor:pointer; transition:background .1s; }
+  .ms-row:hover { background:#161b26; }
+  .ms-row.sel { background:#17241f; box-shadow:inset 3px 0 0 var(--accent); }
+  .ms-row .r1 { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .ms-row .nm { font-weight:700; font-size:13.5px; }
+  .ms-row .sub { color:var(--dim); font-size:11.5px; margin-top:2px; }
+  .ms-detail { padding:10px 13px 12px; background:#0f1419; border-bottom:1px solid var(--line); font-size:12px; line-height:1.6; }
+  .ms-detail .kv { display:flex; flex-wrap:wrap; gap:5px 14px; }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip { background:#11161f; color:#e5edf5; box-shadow:0 4px 18px rgba(0,0,0,.5); }
+  .leaflet-popup-content { font-size:12px; line-height:1.4; }
+  .mpin { width:16px; height:16px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 3px rgba(0,0,0,.25), 0 0 10px rgba(45,212,191,.5); }
+  .mpin.sel { width:22px; height:22px; box-shadow:0 0 0 4px rgba(45,212,191,.35), 0 0 16px rgba(45,212,191,.9); z-index:1000; }
   .sec { margin-bottom:18px; }
   .sec h3 { font-size:14px; margin:0 0 8px; color:#cbd5e1; }
   .hot { display:flex; gap:6px; flex-wrap:wrap; }
@@ -220,15 +236,11 @@
   </div>
   <div class="sec">
     <h3>관심 매물 — 우선순위순</h3>
-    <p style="color:var(--dim);font-size:12px;margin:-4px 0 8px">행을 클릭하면 낙찰가율별 민감도 표·비용분해가 열립니다.</p>
-    <table>
-      <thead><tr>
-        <th class="l">단지명</th><th class="l">지역</th><th>급지</th><th>평형</th><th>연식</th><th>세대수</th><th>용적률</th><th>감정가</th><th>최저매각가</th>
-        <th>최근실거래</th><th>전세</th><th>권장입찰가</th><th>시세차익률</th><th>임대수익률</th>
-        <th class="l">입찰기일</th><th>우선순위</th><th></th>
-      </tr></thead>
-      <tbody id="auctionRows"></tbody>
-    </table>
+    <p style="color:var(--dim);font-size:12px;margin:-4px 0 8px">단지 클릭 시 상세(비용·수익·급지) 드릴다운 + 지도 핀 포커스. 상세의 '대출계산기'로 민감도 표.</p>
+    <div class="mapsplit">
+      <div class="ms-list" id="auctionList"></div>
+      <div class="ms-map" id="auctionMap"></div>
+    </div>
     <p id="emptyMsg" style="color:var(--dim)"></p>
   </div>
 </div>
@@ -267,13 +279,10 @@
       <label style="margin-left:10px"><input type="checkbox" id="psBuyOnly" onchange="renderPresale()"> BUY+ 지역만</label>
       <label style="margin-left:8px"><input type="checkbox" id="psOpen" onchange="renderPresale()"> 접수중·예정만</label>
     </p>
-    <table>
-      <thead><tr>
-        <th class="l">단지명</th><th class="l">지역</th><th>시그널</th><th class="l">주택구분</th>
-        <th>상태</th><th class="l">청약접수</th><th class="l">입주</th><th>총세대</th>
-      </tr></thead>
-      <tbody id="psRows"></tbody>
-    </table>
+    <div class="mapsplit">
+      <div class="ms-list" id="psList"></div>
+      <div class="ms-map" id="psMap"></div>
+    </div>
     <p id="psEmpty" style="color:var(--dim)"></p>
   </div>
 </div>
@@ -289,14 +298,10 @@
       <option value="0">전체</option><option value="-3">-3% 이하</option><option value="-5" selected>-5% 이하</option><option value="-8">-8% 이하</option><option value="-10">-10% 이하</option></select></label>
     <span id="qsStatus" style="color:var(--dim);font-size:12px"></span>
   </div>
-  <div id="qsMap" style="height:300px;border:1px solid var(--line);border-radius:10px;margin-bottom:12px;display:none"></div>
-  <table>
-    <thead><tr>
-      <th class="l">단지명</th><th class="l">지역</th><th>시그널</th><th>평형</th><th>층/향</th>
-      <th>호가</th><th>중위시세</th><th>급매갭</th><th>세대</th><th>연식</th>
-    </tr></thead>
-    <tbody id="qsRows"></tbody>
-  </table>
+  <div class="mapsplit">
+    <div class="ms-list" id="qsList"></div>
+    <div class="ms-map" id="qsMap"></div>
+  </div>
   <p id="qsEmpty" style="color:var(--dim)"></p>
 </div>
 
@@ -311,9 +316,10 @@
       <label>지역 <select id="rdRegion" onchange="loadRedevCands()" style="background:#0f1115;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:5px"></select></label>
       <span id="rdCandStatus" style="color:var(--dim);font-size:12px"></span>
     </div>
-    <table><thead><tr>
-      <th class="l">단지명</th><th>잠재력</th><th>연식</th><th>용적률</th><th>세대수</th><th>평단가</th><th class="l">점수구성</th>
-    </tr></thead><tbody id="rdCandRows"></tbody></table>
+    <div class="mapsplit" style="height:400px;min-height:400px">
+      <div class="ms-list" id="rdCandList"></div>
+      <div class="ms-map" id="rdCandMap"></div>
+    </div>
     <p id="rdCandEmpty" style="color:var(--dim)"></p>
   </div>
 
@@ -469,26 +475,28 @@ async function loadRedev(){
     _redevInit=true; loadRedevCands(); loadRedevZones();
   }
 }
+let _rdRegion='';
 async function loadRedevCands(){
-  const region=document.getElementById('rdRegion').value;
-  const tb=document.getElementById('rdCandRows'); const st=document.getElementById('rdCandStatus');
+  const region=document.getElementById('rdRegion').value; _rdRegion=region;
+  const st=document.getElementById('rdCandStatus');
   if(!region){ st.textContent='지역을 선택하세요.'; return; }
   loadRedevStages();   // 단계 현황은 빠르므로(캐시) 먼저 독립 로드
-  st.textContent='분석 중… (국토부+건축물대장 조회, 수십초)'; tb.innerHTML='';
+  st.textContent='분석 중… (국토부+건축물대장 조회, 수십초)';
+  document.getElementById('rdCandList').innerHTML='';
   const d=await (await fetch('/api/redevelopment/candidates/'+encodeURIComponent(region))).json();
   st.innerHTML=`${region} ${d['시그널']?badge(d['시그널']):''} · 구축 ${d.candidates.length}개 단지`;
   document.getElementById('rdCandEmpty').textContent = d.candidates.length?'':'구축 단지 데이터가 없습니다.';
-  d.candidates.slice(0,40).forEach(c=>{
-    const col = c['잠재력']>=65?'#4ade80':c['잠재력']>=50?'#fbbf24':'#94a3b8';
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td class="l">${c['단지명']}</td>
-      <td style="color:${col};font-weight:700">${c['잠재력']}</td>
-      <td>${c['연식년']}년</td>
-      <td>${c['용적률']?c['용적률']+'%':'–'}</td>
-      <td>${c['세대수']?c['세대수'].toLocaleString():'–'}</td>
-      <td>${c['평단가']?c['평단가']+'만':'–'}</td>
-      <td class="l" style="font-size:11px;color:var(--dim)">연식${c['_age']}·용적${c['_far']}·규모${c['_size']}·입지${c['_loc']}</td>`;
-    tb.appendChild(tr);
+  const gcol=c=>c['잠재력']>=65?'#4ade80':c['잠재력']>=50?'#fbbf24':'#94a3b8';
+  mapSplit('rdCandList','rdCandMap',d.candidates.slice(0,40),{
+    summary:c=>({nm:c['단지명'], right:`<b style="color:${gcol(c)}">${c['잠재력']}</b>`,
+      sub:`${c['연식년']}년 · ${c['용적률']?c['용적률']+'%':'용적미상'} · ${c['세대수']?c['세대수'].toLocaleString()+'세대':''} · ${c['평단가']}만/평`}),
+    detail:c=>`<div class="kv"><span>잠재력 <b style="color:${gcol(c)}">${c['잠재력']}</b></span>
+      <span>연식 ${c['연식년']}년</span><span>용적률 ${c['용적률']?c['용적률']+'%':'–'}</span>
+      <span>세대 ${c['세대수']?c['세대수'].toLocaleString():'–'}</span><span>평단 ${c['평단가']}만</span></div>
+      <div style="margin-top:5px;font-size:11px;color:var(--dim)">점수구성 — 연식 ${c['_age']} · 용적 ${c['_far']} · 규모 ${c['_size']} · 입지 ${c['_loc']}</div>`,
+    geoq:c=>`${region} ${c['단지명']}`,
+    color:c=>gcol(c),
+    label:c=>`<b>${c['단지명']}</b><br>재건축 잠재력 ${c['잠재력']} · ${c['연식년']}년`,
   });
 }
 async function loadRedevStages(){
@@ -563,51 +571,74 @@ async function refreshQuicksale(){
   }catch(e){ document.getElementById('qsStatus').textContent='스캔 실패: '+e; }
   btn.disabled=false; btn.textContent=o;
 }
+const _eok = n => (n==null||n<=0)?'–':(n/10000).toFixed(1)+'억';
 function renderQuicksale(){
   const minGap = +document.getElementById('qsGap').value || 0;
   const rows = _qsList.filter(m=> minGap===0 || (m['급매갭']!=null && m['급매갭']<=minGap));
-  const tb=document.getElementById('qsRows'); tb.innerHTML='';
   document.getElementById('qsEmpty').textContent = rows.length?'':'조건에 맞는 급매가 없습니다. (스캔 먼저 / 갭 기준 완화)';
-  const eok = n => n==null?'–':(n/10000).toFixed(1)+'억';
-  const pins = rows.map((m,i)=>({lat:m['lat'],lng:m['lng'],
-    label:`${m['단지명']}<br>${m['평형']||''}평 · ${eok(m['호가'])} (${m['급매갭']}%)`,
-    color:(m['급매갭']<=-8?'#ef4444':'#fb923c'), idx:i})).filter(p=>p.lat&&p.lng);
-  const map = listMap('qsMap', pins);
-  rows.forEach((m,i)=>{
-    const tr=document.createElement('tr');
-    const g=m['급매갭'];
-    if(m['lat']&&m['lng']){ tr.style.cursor='pointer'; tr.onclick=()=>map&&map.focus(i); }
-    tr.innerHTML = `<td class="l">${m['단지명']||'–'}</td>
-      <td class="l">${m['지역']||''}</td>
-      <td>${m['시그널']?badge(m['시그널']):'–'}</td>
-      <td>${m['평형']?m['평형']+'평':'–'}</td>
-      <td>${m['층']??'–'}층 ${m['방향']||''}</td>
-      <td>${eok(m['호가'])}</td>
-      <td style="color:var(--dim)">${eok(m['중위시세'])}</td>
-      <td style="color:${g<=-8?'#ef4444':g<0?'#fb923c':'var(--dim)'};font-weight:700">${g!=null?g+'%':'–'}</td>
-      <td>${m['세대수']?m['세대수'].toLocaleString():'–'}</td>
-      <td>${m['연식']||'–'}</td>`;
-    tb.appendChild(tr);
+  mapSplit('qsList','qsMap',rows,{
+    summary:m=>({nm:m['단지명']||'–', right:`<b style="color:${m['급매갭']<=-8?'#ef4444':'#fb923c'}">${m['급매갭']}%</b>`,
+      sub:`${m['지역']||''} · ${m['평형']||''}평 · 호가 ${_eok(m['호가'])}`}),
+    detail:m=>`<div class="kv"><span>호가 <b>${_eok(m['호가'])}</b></span><span>중위시세 ${_eok(m['중위시세'])}</span>
+      <span>${m['층']??'–'}층 ${m['방향']||''}</span><span>세대 ${m['세대수']?m['세대수'].toLocaleString():'–'}</span>
+      <span>연식 ${m['연식']||'–'}</span>${m['시그널']?'<span>'+badge(m['시그널'])+'</span>':''}</div>`,
+    coord:m=>(m['lat']&&m['lng'])?[m['lat'],m['lng']]:null,
+    color:m=>m['급매갭']<=-8?'#ef4444':'#fb923c',
+    label:m=>`<b>${m['단지명']}</b><br>${m['평형']||''}평 · ${_eok(m['호가'])} <span style="color:#fb923c">(${m['급매갭']}%)</span>`,
   });
 }
-// 재사용 핀 지도 (Leaflet + OSM). pins:[{lat,lng,label,color,idx}] → {focus(idx)}
-const _maps={};
-function listMap(divId, pins){
-  const el=document.getElementById(divId);
-  if(!pins.length){ el.style.display='none'; return null; }
-  el.style.display='block';
-  let m=_maps[divId];
-  if(!m){ m=L.map(divId,{scrollWheelZoom:false}); _maps[divId]={map:m,markers:[]};
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OSM'}).addTo(m);
-    m=_maps[divId]; }
-  m.markers.forEach(mk=>m.map.removeLayer(mk)); m.markers=[];
-  const byIdx={};
-  pins.forEach(p=>{ const mk=L.circleMarker([p.lat,p.lng],{radius:7,color:'#fff',weight:1.5,fillColor:p.color||'#fb923c',fillOpacity:0.9})
-    .addTo(m.map).bindPopup(p.label); m.markers.push(mk); byIdx[p.idx]=mk; });
-  const grp=L.featureGroup(m.markers); m.map.fitBounds(grp.getBounds().pad(0.15));
-  setTimeout(()=>m.map.invalidateSize(),100);
-  return { focus:(idx)=>{ const mk=byIdx[idx]; if(mk){ m.map.setView(mk.getLatLng(),16,{animate:true}); mk.openPopup(); } } };
+// ===== 재사용 좌우 분할 지도 컴포넌트 (Leaflet + CartoDB dark) =====
+const _ms={};
+async function mapSplit(listId, mapId, items, opt){
+  const listEl=document.getElementById(listId); listEl.innerHTML='';
+  items.forEach((it,i)=>{
+    const s=opt.summary(it,i);
+    const row=document.createElement('div'); row.className='ms-row'; row.dataset.i=i;
+    row.innerHTML=`<div class="r1"><span class="nm">${s.nm}</span><span>${s.right||''}</span></div>${s.sub?`<div class="sub">${s.sub}</div>`:''}`;
+    const det=document.createElement('div'); det.className='ms-detail'; det.style.display='none';
+    row.onclick=()=>{ const open=det.style.display==='none';
+      listEl.querySelectorAll('.ms-detail').forEach(d=>d.style.display='none');
+      listEl.querySelectorAll('.ms-row').forEach(r=>r.classList.remove('sel'));
+      if(open){ det.innerHTML=opt.detail(it); det.style.display='block'; row.classList.add('sel'); }
+      focusPin(mapId,i); };
+    listEl.appendChild(row); listEl.appendChild(det);
+  });
+  const coords={}, need=[];
+  items.forEach((it,i)=>{ const c=opt.coord&&opt.coord(it); if(c&&c[0]) coords[i]=c;
+    else if(opt.geoq){ const q=opt.geoq(it); if(q) need.push({i,q}); } });
+  plotPins(mapId, items, coords, opt);
+  if(need.length){
+    const qs=[...new Set(need.map(n=>n.q))];
+    try{ const r=await (await fetch('/api/geocode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({queries:qs,max_miss:25})})).json();
+      need.forEach(n=>{ if(r.coords[n.q]) coords[n.i]=r.coords[n.q]; });
+      plotPins(mapId, items, coords, opt);
+    }catch(e){}
+  }
 }
+function initMap(mapId){
+  let st=_ms[mapId];
+  if(!st){ const map=L.map(mapId,{scrollWheelZoom:true,zoomControl:true});
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:20,attribution:'© OpenStreetMap © CARTO'}).addTo(map);
+    map.setView([37.55,126.99],11);
+    st=_ms[mapId]={map,markers:{},sel:null}; }
+  return st;
+}
+function plotPins(mapId, items, coords, opt){
+  const st=initMap(mapId);
+  Object.values(st.markers).forEach(mk=>st.map.removeLayer(mk)); st.markers={};
+  items.forEach((it,i)=>{ const c=coords[i]; if(!c) return;
+    const color=(opt.color&&opt.color(it))||'#2dd4bf';
+    const icon=L.divIcon({className:'',html:`<div class="mpin" style="background:${color}"></div>`,iconSize:[16,16],iconAnchor:[8,8]});
+    const mk=L.marker(c,{icon}).addTo(st.map).bindPopup(opt.label(it));
+    st.markers[i]=mk; });
+  const ms=Object.values(st.markers);
+  if(ms.length){ const g=L.featureGroup(ms); st.map.fitBounds(g.getBounds().pad(0.18)); }
+  setTimeout(()=>st.map.invalidateSize(),150);
+}
+function focusPin(mapId,i){ const st=_ms[mapId]; if(!st) return; const mk=st.markers[i];
+  if(st.sel!=null && st.markers[st.sel]){ const e=st.markers[st.sel].getElement(); if(e){const d=e.querySelector('.mpin'); d&&d.classList.remove('sel');} }
+  if(mk){ st.map.setView(mk.getLatLng(),16,{animate:true}); mk.openPopup();
+    const e=mk.getElement(); if(e){const d=e.querySelector('.mpin'); d&&d.classList.add('sel');} st.sel=i; } }
 let _ccBudget=0, _ccPyeong=25.7;
 async function loadConclusion(){
   const capital = +document.getElementById('ccCapital').value || 0;
@@ -728,54 +759,38 @@ function renderPresale(){
   const rows = _presaleList
     .filter(r => !buyOnly || ['STRONG_BUY','BUY'].includes(r['시그널']))
     .filter(r => !openOnly || ['접수중','접수예정'].includes(r['상태']));
-  const tb = document.getElementById('psRows'); tb.innerHTML='';
   document.getElementById('psEmpty').textContent = rows.length ? '' : '해당 조건의 청약 단지가 없습니다.';
-  rows.forEach(r=>{
-    const tr=document.createElement('tr'); tr.style.cursor='pointer';
-    tr.onclick = ()=> expandPsTypes(r['관리번호'], tr);
-    const sched = [r['청약접수시작'], r['청약접수마감']].filter(Boolean).join(' ~ ') || '–';
-    const sub = subAddr(r['주소'], r['지역']);
-    tr.innerHTML = `<td class="l">${r['단지명']||'–'} ${r['정비사업']?'<span class="pill">정비</span>':''}
-        <span class="pill" style="border-color:var(--accent);color:var(--accent)">평형 ▾</span>
-        ${sub!=='–'?`<div style="font-size:11px;color:var(--dim)">${sub}</div>`:''}</td>
-      <td class="l">${r['지역']||''} ${r['지역급지']?regionGradeBadge(r['지역급지'],r['지역평단가']):''}</td>
-      <td>${r['시그널']?badge(r['시그널']):'–'}</td>
-      <td class="l">${r['주택구분']||'–'}</td>
-      <td>${psStatusBadge(r['상태'], r['Dday'])}</td>
-      <td class="l" style="font-size:12px">${sched}</td>
-      <td class="l">${r['입주예정']||'–'}</td>
-      <td>${r['총세대']?Number(r['총세대']).toLocaleString():'–'}</td>`;
-    tb.appendChild(tr);
+  mapSplit('psList','psMap',rows,{
+    summary:r=>({nm:`${r['단지명']||'–'} ${r['정비사업']?'<span class="pill">정비</span>':''}`,
+      right:psStatusBadge(r['상태'],r['Dday']),
+      sub:`${r['지역']||''} ${r['지역급지']?'· '+r['지역급지']+'급지':''} · ${r['주택구분']||''} · ${subAddr(r['주소'],r['지역'])}`}),
+    detail:r=>{ const id='psd'+r['관리번호']; loadPsTypes(r['관리번호'],id);
+      const sched=[r['청약접수시작'],r['청약접수마감']].filter(Boolean).join(' ~ ')||'–';
+      return `<div class="kv"><span>${r['시그널']?badge(r['시그널']):''}</span><span>접수 ${sched}</span>
+        <span>입주 ${r['입주예정']||'–'}</span><span>총 ${r['총세대']?Number(r['총세대']).toLocaleString():'–'}세대</span></div>
+        <div id="${id}" style="margin-top:7px;color:var(--dim)">평형별 분양가 불러오는 중…</div>`; },
+    geoq:r=>r['주소']||(r['지역']+' '+r['단지명']),
+    color:r=>r['상태']==='접수중'?'#4ade80':r['상태']==='접수예정'?'#60a5fa':'#94a3b8',
+    label:r=>`<b>${r['단지명']}</b><br>${r['지역']||''} · ${psStatusBadge(r['상태'],r['Dday'])}`,
   });
 }
-// 단지 평형별 분양가·특별공급·시세대비 메리트 펼치기
-async function expandPsTypes(no, tr){
-  if(tr.nextSibling && tr.nextSibling.classList?.contains('ps-detail')){ tr.nextSibling.remove(); return; }
-  const det=document.createElement('tr'); det.className='ps-detail';
-  det.innerHTML=`<td colspan="8" style="background:#0f1115;color:var(--dim)">평형별 분양가 불러오는 중…</td>`;
-  tr.after(det);
+// 평형별 분양가·특공·메리트를 elId 컨테이너에 채움 (드릴다운용)
+async function loadPsTypes(no, elId){
   const d = await (await fetch('/api/presale/'+encodeURIComponent(no)+'/types')).json();
+  const el=document.getElementById(elId); if(!el) return;
   const eok=n=>(!n||n<=0)?'–':(n/10000).toFixed(2)+'억';
   const ts=d.types||[];
-  if(!ts.length){ det.innerHTML=`<td colspan="8" style="background:#0f1115;color:var(--dim);padding:10px">평형별 데이터가 없습니다.</td>`; return; }
-  const rows = ts.map(t=>{
-    const spc = Object.entries(t['특공유형']||{}).map(([k,v])=>`${k} ${v}`).join(' · ');
-    const m=t['메리트'];
-    const mtxt = m==null?'' : `<span style="color:${m<0?'#4ade80':'#f87171'};font-weight:700">시세대비 ${m>0?'+':''}${m}%</span>`;
-    return `<tr>
-      <td class="l">${t['주택형']} <span style="color:var(--dim)">(${t['평']}평/${t['공급면적']}㎡)</span></td>
-      <td><b>${eok(t['분양가'])}</b></td>
-      <td style="color:var(--dim)">${t['분양평단가']?t['분양평단가']+'만/평':'–'}</td>
-      <td>${mtxt}</td>
-      <td>일반 ${t['일반세대']} · 특공 ${t['특공세대']}</td>
-      <td class="l" style="font-size:11px;color:var(--dim)">${spc||'–'}</td></tr>`;
-  }).join('');
-  const mref = d['지역평단가'] ? `주변시세 ${d['지역평단가']}만/평 기준` : '주변시세 미상(메리트 계산 불가)';
-  det.innerHTML=`<td colspan="8" style="background:#0f1115;padding:10px">
-    <div style="font-size:11px;color:var(--dim);margin-bottom:6px">${mref} · 메리트 음수=시세보다 저렴(안전마진)</div>
+  if(!ts.length){ el.innerHTML='평형별 데이터가 없습니다.'; return; }
+  const rows=ts.map(t=>{ const m=t['메리트'];
+    const mtxt=m==null?'':`<span style="color:${m<0?'#4ade80':'#f87171'};font-weight:700">시세대비 ${m>0?'+':''}${m}%</span>`;
+    const spc=Object.entries(t['특공유형']||{}).map(([k,v])=>`${k} ${v}`).join(' · ');
+    return `<tr><td class="l">${t['주택형']} <span style="color:var(--dim)">(${t['평']}평)</span></td>
+      <td><b>${eok(t['분양가'])}</b></td><td style="color:var(--dim)">${t['분양평단가']?t['분양평단가']+'만/평':'–'}</td>
+      <td>${mtxt}</td><td class="l" style="font-size:11px;color:var(--dim)">${spc||'일반 '+t['일반세대']}</td></tr>`;}).join('');
+  const mref=d['지역평단가']?`주변시세 ${d['지역평단가']}만/평 기준 · 메리트 음수=저렴`:'주변시세 미상';
+  el.innerHTML=`<div style="font-size:11px;margin-bottom:4px">${mref}</div>
     <table style="width:100%"><thead><tr style="font-size:11px;color:var(--dim)">
-      <th class="l">주택형</th><th>분양가</th><th>평단가</th><th>시세대비</th><th>공급세대</th><th class="l">특별공급</th>
-    </tr></thead><tbody>${rows}</tbody></table></td>`;
+    <th class="l">주택형</th><th>분양가</th><th>평단가</th><th>시세대비</th><th class="l">특별공급</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 let uvChart, _uvList=[], _uvSort={k:'저평가도', asc:false};
@@ -1227,33 +1242,28 @@ function renderAuction(rows){
   if(sz) rows = rows.filter(r=>{const a=r['전용면적']||0; return sz==='s'?a<=60:sz==='m'?(a>60&&a<=85):a>85;});
   if(ag) rows = rows.filter(r=>{ if(!r['건축년도']) return false; const y=2026-r['건축년도'];
     return ag==='new'?y<=10:ag==='mid'?(y>10&&y<=20):y>20;});
-  const tb = document.getElementById('auctionRows'); tb.innerHTML='';
   document.getElementById('emptyMsg').textContent = rows.length ? '' :
     '관심 매물이 없습니다. BUY+ 지역의 경매 매물을 "+ 매물 추가" 또는 CSV로 등록하세요.';
-  rows.forEach(r=>{
-    const dleft = daysTo(r['입찰기일']);
-    const imminent = dleft!=null && dleft>=0 && dleft<=7;
-    const tr2 = document.createElement('tr');
-    tr2.className = (imminent?'imminent ':'') + (r['목표달성']?'':'unprofit');
-    tr2.style.cursor='pointer';
-    tr2.onclick = (e)=>{ if(!e.target.classList.contains('del')) openCalc(r['id'], r['단지명']); };
-    const dtxt = r['입찰기일'] ? `${r['입찰기일']}${dleft!=null?` <span class="pill">${dleft<0?'지남':'D-'+dleft}</span>`:''}` : '–';
-    const lease = r['임대수익률']==null?'–':r['임대수익률']+'%';
-    tr2.innerHTML = `<td class="l">${r['단지명']||'–'} ${r['목표달성']?'':'<span class="pill">목표미달</span>'}</td>
-      <td class="l">${r['region']||''} ${r['지역시그널']?badge(r['지역시그널']):''}</td>
-      <td>${gradeBadge(r['단지급지'], r['급지상위'])}</td>
-      <td>${r['전용면적']?Math.round(r['전용면적'])+'㎡('+(r['전용면적']/3.3058).toFixed(0)+'평)':'–'}</td>
-      <td>${r['건축년도']?(2026-r['건축년도'])+'년':'–'}</td>
-      <td>${r['세대수']?r['세대수'].toLocaleString():'–'}</td>
-      <td>${r['용적률']?r['용적률']+'%':'–'}</td>
-      <td>${won(r['감정가'])}</td><td>${won(r['최저매각가'])}</td>
-      <td>${won(r['최근실거래가'])}</td><td>${won(r['최근전세가'])}</td>
-      <td style="color:#4ade80;font-weight:600">${won(r['권장입찰가'])}</td>
-      <td style="color:${r['시세차익률']>=0?'#4ade80':'#f87171'}">${r['시세차익률']}%</td>
-      <td>${lease}</td>
-      <td class="l">${dtxt}</td><td>${r['우선순위점수']}</td>
-      <td><span class="btn del" style="padding:2px 8px" onclick="delListing('${r['id']}')">✕</span></td>`;
-    tb.appendChild(tr2);
+  mapSplit('auctionList','auctionMap',rows,{
+    summary:r=>{ const dl=daysTo(r['입찰기일']);
+      return {nm:`${r['단지명']||'–'} ${r['목표달성']?'':'<span class="pill">목표미달</span>'}`,
+        right:`<b style="color:${r['시세차익률']>=0?'#4ade80':'#f87171'}">${r['시세차익률']}%</b>`,
+        sub:`${r['region']||''} ${r['단지급지']?'· '+r['단지급지']+'급지':''} · 권장 ${won(r['권장입찰가'])} ${dl!=null?'· '+(dl<0?'기일지남':'D-'+dl):''}`}; },
+    detail:r=>`<div class="kv">
+      <span>${r['지역시그널']?badge(r['지역시그널']):''}</span>${r['단지급지']?'<span>'+gradeBadge(r['단지급지'],r['급지상위'])+'</span>':''}
+      <span>평형 ${r['전용면적']?Math.round(r['전용면적'])+'㎡('+(r['전용면적']/3.3058).toFixed(0)+'평)':'–'}</span>
+      <span>연식 ${r['건축년도']?(2026-r['건축년도'])+'년':'–'}</span><span>세대 ${r['세대수']?r['세대수'].toLocaleString():'–'}</span>
+      <span>용적 ${r['용적률']?r['용적률']+'%':'–'}</span></div>
+      <div class="kv" style="margin-top:5px"><span>감정 ${won(r['감정가'])}</span><span>최저 ${won(r['최저매각가'])}</span>
+      <span>실거래 ${won(r['최근실거래가'])}</span><span>전세 ${won(r['최근전세가'])}</span>
+      <span style="color:#4ade80">권장입찰 <b>${won(r['권장입찰가'])}</b></span><span>임대 ${r['임대수익률']==null?'–':r['임대수익률']+'%'}</span>
+      <span>입찰기일 ${r['입찰기일']||'–'}</span></div>
+      <div style="margin-top:7px;display:flex;gap:6px">
+        <span class="btn" style="padding:3px 10px;background:var(--accent);color:#000" onclick="event.stopPropagation();openCalc('${r['id']}','${(r['단지명']||'').replace(/'/g,'')}')">대출계산기</span>
+        <span class="btn del" style="padding:3px 10px" onclick="event.stopPropagation();delListing('${r['id']}')">삭제</span></div>`,
+    geoq:r=>{ const dong=(r['메모']||'').match(/[가-힣]+동/); return `${r['region']||''} ${dong?dong[0]+' ':''}${r['단지명']||''}`; },
+    color:r=>r['시세차익률']>=10?'#4ade80':r['시세차익률']>=0?'#fbbf24':'#f87171',
+    label:r=>`<b>${r['단지명']}</b><br>${r['region']||''} · 권장 ${won(r['권장입찰가'])} · 차익 ${r['시세차익률']}%`,
   });
   renderStrategy(rows);
 }
