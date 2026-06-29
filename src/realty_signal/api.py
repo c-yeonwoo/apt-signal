@@ -498,6 +498,34 @@ def redev_candidates(region: str):
     return {"region": region, "시그널": sig.get(region, ""), "candidates": _redev_candidates(region)}
 
 
+REDEV_PROGRESS_FILE = store.CACHE_DIR / "redev_progress.json"
+
+
+@lru_cache(maxsize=1)
+def _redev_progress():
+    """정비사업 추진경과(30k행) — 디스크 캐시 우선(전수 페이징이 느려서)."""
+    from realty_signal.ingest import redevelopment as rd
+    if REDEV_PROGRESS_FILE.exists():
+        return json.loads(REDEV_PROGRESS_FILE.read_text(encoding="utf-8"))
+    config.load_env()
+    key = config.seoul_key()
+    rows = rd.fetch_progress(key) if key else []
+    if rows:
+        REDEV_PROGRESS_FILE.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+    return rows
+
+
+@app.get("/api/redevelopment/stages")
+def redev_stages(region: str | None = None):
+    """정비사업 단계 현황 — 시군구별 현 단계 분포 + 단계 평균 소요기간."""
+    from realty_signal.ingest import redevelopment as rd
+    sgg5 = None
+    if region:
+        code = _kb().codes.get(region, "")
+        sgg5 = code[:5] if (code and code.isdigit()) else None
+    return {"region": region or "서울 전체", **rd.stage_summary(_redev_progress(), sgg5)}
+
+
 @app.get("/api/redevelopment/value-calc")
 def redev_value_calc(current_price: float, pyeong: float, presale_pyeong_price: float,
                      contribution: float, hold_months: int = 60):

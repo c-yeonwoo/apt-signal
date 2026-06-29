@@ -315,7 +315,15 @@
   </div>
 
   <div class="sec">
-    <h3>② 재건축 가치 계산기 <span class="pill">입력 기반 ROI</span></h3>
+    <h3>② 정비사업 단계 현황 <span class="pill">서울 정보몽땅</span></h3>
+    <p style="color:var(--dim);font-size:12px;margin:-4px 0 8px">단계가 진행될수록 불확실성↓·가격↑. 위 지역 선택과 연동(미선택 시 서울 전체).</p>
+    <div id="rdStageDist" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:4px">단계 평균 소요기간 (학습 인사이트)</div>
+    <div id="rdStageDur" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+  </div>
+
+  <div class="sec">
+    <h3>③ 재건축 가치 계산기 <span class="pill">입력 기반 ROI</span></h3>
     <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;background:#0f1115;border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:10px">
       <label>현재 매수가<br><input id="rv_cur" type="number" value="100000" style="width:100px"> 만</label>
       <label>전용 평형<br><input id="rv_py" type="number" value="25" style="width:60px"> 평</label>
@@ -328,7 +336,7 @@
   </div>
 
   <div class="sec">
-    <h3>③ 서울 정비구역 현황 <span class="pill">upisRebuild</span></h3>
+    <h3>④ 서울 정비구역 현황 <span class="pill">upisRebuild</span></h3>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
       <label>구분 <select id="rdZoneType" onchange="loadRedevZones()" style="background:#0f1115;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:5px">
         <option value="">전체</option><option value="재건축">재건축</option><option value="재개발">재개발</option><option value="도시환경">도시환경</option><option value="주거환경">주거환경</option></select></label>
@@ -462,6 +470,7 @@ async function loadRedevCands(){
   const region=document.getElementById('rdRegion').value;
   const tb=document.getElementById('rdCandRows'); const st=document.getElementById('rdCandStatus');
   if(!region){ st.textContent='지역을 선택하세요.'; return; }
+  loadRedevStages();   // 단계 현황은 빠르므로(캐시) 먼저 독립 로드
   st.textContent='분석 중… (국토부+건축물대장 조회, 수십초)'; tb.innerHTML='';
   const d=await (await fetch('/api/redevelopment/candidates/'+encodeURIComponent(region))).json();
   st.innerHTML=`${region} ${d['시그널']?badge(d['시그널']):''} · 구축 ${d.candidates.length}개 단지`;
@@ -478,6 +487,19 @@ async function loadRedevCands(){
       <td class="l" style="font-size:11px;color:var(--dim)">연식${c['_age']}·용적${c['_far']}·규모${c['_size']}·입지${c['_loc']}</td>`;
     tb.appendChild(tr);
   });
+}
+async function loadRedevStages(){
+  const region=document.getElementById('rdRegion').value;
+  const dist=document.getElementById('rdStageDist'), dur=document.getElementById('rdStageDur');
+  dist.innerHTML='<span style="color:var(--dim);font-size:12px">불러오는 중…</span>'; dur.innerHTML='';
+  const d=await (await fetch('/api/redevelopment/stages'+(region?'?region='+encodeURIComponent(region):''))).json();
+  const late=['관리처분인가','이주','철거신고','착공신고','일반분양승인','준공인가','이전고시','조합해산'];
+  dist.innerHTML=`<span style="color:var(--dim);font-size:12px;align-self:center">${d.region} ${d['사업수']}개 사업 →</span>`+
+    (d['단계분포']||[]).map(s=>{const c=late.includes(s['단계'])?'#4ade80':'#60a5fa';
+      return `<span style="background:${c}22;color:${c};border:1px solid ${c}55;border-radius:10px;padding:2px 9px;font-size:11px;font-weight:600">${s['단계']} ${s['사업수']}</span>`;}).join('');
+  dur.innerHTML=(d['평균소요']||[]).slice(0,7).map(t=>
+    `<span style="background:#1e293b;border:1px solid var(--line);border-radius:8px;padding:3px 9px;font-size:11px">${t['전이']} <b style="color:var(--accent)">${t['평균개월']}개월</b></span>`).join('')
+    || '<span style="color:var(--dim);font-size:12px">소요기간 데이터 부족</span>';
 }
 function calcRedevValue(){
   const q=`current_price=${+rv_cur.value}&pyeong=${+rv_py.value}&presale_pyeong_price=${+rv_ps.value}&contribution=${+rv_con.value}&hold_months=${+rv_mon.value}`;

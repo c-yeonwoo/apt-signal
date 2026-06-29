@@ -134,6 +134,74 @@ def rebuild_candidates(lawd5: str, key: str, min_age: int = 28) -> list[dict]:
     return out
 
 
+_SIDO5 = {"11": "서울"}  # BIZ_NO 앞 5자리=시군구코드
+
+
+def fetch_progress(seoul_key: str, max_rows: int = 31000) -> list[dict]:
+    """정비사업 추진경과 — BIZ_NO별 단계·날짜 (CleanupBussinessProgress). 전수 페이징."""
+    out = []
+    for start in range(1, max_rows + 1, 1000):
+        end = start + 999
+        url = f"{_UPIS}/{seoul_key}/xml/CleanupBussinessProgress/{start}/{end}/"
+        try:
+            root = ET.fromstring(urllib.request.urlopen(  # noqa: S310
+                urllib.request.Request(url, headers=_HDR), timeout=30).read())
+        except Exception:
+            break
+        rows = list(root.iter("row"))
+        if not rows:
+            break
+        for r in rows:
+            biz = r.findtext("BIZ_NO") or ""
+            day = (r.findtext("DAY") or "").strip()
+            se = (r.findtext("SE_NM") or "").strip()
+            cd = (r.findtext("SE_CD") or "").strip()
+            if biz and se and day.isdigit() and len(day) == 8:
+                out.append({"biz": biz, "sgg5": biz.split("-")[0][:5], "단계": se,
+                            "cd": int(cd) if cd.isdigit() else 0, "day": day})
+    return out
+
+
+# 정비사업 단계 사다리 (SE_CD 오름차순 ≈ 진행 순서)
+_STAGE_ORDER = ["기본계획수립", "정비구역지정", "안전진단", "조합설립추진위원회승인", "조합설립인가",
+                "정비사업전문관리업자선정", "설계자선정", "사업시행인가", "시공자선정",
+                "관리처분인가", "이주", "철거업자선정", "철거신고", "착공신고",
+                "일반분양승인", "준공인가", "이전고시", "조합해산"]
+
+
+def stage_summary(rows: list[dict], sgg5: str | None = None) -> dict:
+    """시군구(sgg5 앞2자리 일치) 정비사업의 현 단계 분포 + 단계 평균 소요기간."""
+    by_biz: dict = {}
+    for r in rows:
+        if sgg5 and r["sgg5"] != sgg5:
+            continue
+        by_biz.setdefault(r["biz"], []).append(r)
+    # 현 단계 = 도달한 최고 단계(SE_CD 최대)
+    order = {s: i for i, s in enumerate(_STAGE_ORDER)}
+    dist: dict = {}
+    durations: dict = {}  # 단계전이 → [일수]
+    for biz, evs in by_biz.items():
+        evs2 = sorted(evs, key=lambda e: (e["cd"], e["day"]))
+        cur = max(evs2, key=lambda e: order.get(e["단계"], e["cd"]))["단계"]
+        dist[cur] = dist.get(cur, 0) + 1
+        # 단계별 최초 도달일
+        first: dict = {}
+        for e in evs2:
+            first.setdefault(e["단계"], e["day"])
+        seq = [s for s in _STAGE_ORDER if s in first]
+        for a, b in zip(seq, seq[1:]):
+            from datetime import date
+            da, db = first[a], first[b]
+            d = (date(int(db[:4]), int(db[4:6]), int(db[6:])) - date(int(da[:4]), int(da[4:6]), int(da[6:]))).days
+            if 0 < d < 365 * 25:
+                durations.setdefault(f"{a}→{b}", []).append(d)
+    dist_sorted = [{"단계": s, "사업수": dist[s]} for s in _STAGE_ORDER if s in dist]
+    dur_avg = [{"전이": k, "평균개월": round(sum(v) / len(v) / 30.4), "n": len(v)}
+               for k, v in durations.items() if len(v) >= 3]
+    dur_avg.sort(key=lambda x: _STAGE_ORDER.index(x["전이"].split("→")[0]))
+    return {"사업수": len(by_biz), "단계분포": dist_sorted, "평균소요": dur_avg}
+
+
 def value_calc(현재가: float, 평형: float, 예상분양가_평단: float, 분담금: float,
                보유개월: int = 60) -> dict:
     """재건축 가치 계산 — 입력 기반 ROI.
