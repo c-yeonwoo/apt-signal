@@ -70,22 +70,24 @@ def price_per_pyeong(lawd_cd: str, ym_list: list[str]) -> float | None:
     return round(statistics.median(ppp)) if ppp else None
 
 
-# ---------- 접근성: ODsay 대중교통 소요시간(분), 3개 업무지구 최솟값 ----------
-def transit_min(lat: float, lng: float) -> int | None:
+# ---------- 접근성: ODsay 대중교통 소요시간(분), 3개 업무지구 중 최단 ----------
+def transit_min(lat: float, lng: float) -> tuple[int, str] | tuple[None, None]:
+    """(최단 대중교통 분, 최단 업무지구명). 강남·광화문·여의도 중 가장 가까운 곳."""
     key = config.odsay_key()
-    best = None
-    for hlat, hlng in HUBS.values():
+    best, best_hub = None, None
+    for name, (hlat, hlng) in HUBS.items():
         url = ("https://api.odsay.com/v1/api/searchPubTransPathT?apiKey="
                + urllib.parse.quote(key, safe="")
                + f"&SX={lng}&SY={lat}&EX={hlng}&EY={hlat}")
         try:
             j = json.loads(_fetch(url))
             t = j["result"]["path"][0]["info"]["totalTime"]
-            best = t if best is None else min(best, t)
+            if best is None or t < best:
+                best, best_hub = t, name
         except Exception:
             continue
         time.sleep(0.2)
-    return best
+    return (best, best_hub)
 
 
 # ---------- 학군: 소상공인 상가정보, 반경 내 교육(P1) 점포수 ----------
@@ -189,8 +191,8 @@ def _interpret_locality(r: dict) -> str:
     comps = [("업무지구 접근성", r["_acc"]), ("학군(학원 밀도)", r["_sch"]), ("주거환경", r["_env"])]
     comps.sort(key=lambda x: x[1], reverse=True)
     strong, weak = comps[0], comps[-1]
-    tmin = r.get("transit_min")
-    acc_txt = f"주요 업무지구까지 약 {tmin}분" if tmin else "업무지구 접근성"
+    tmin, hub = r.get("transit_min"), r.get("최단업무지구")
+    acc_txt = (f"{hub or '주요 업무지구'}까지 약 {tmin}분(대중교통 최단)" if tmin else "업무지구 접근성")
 
     lead = f"{acc_txt}, {strong[0]}이(가) 상대적 강점인 지역"
     if strong[1] >= 60 and weak[1] <= 40:
@@ -229,13 +231,13 @@ def build_localities(codes: dict, ym_list: list[str], limit: int | None = None) 
         price = price_per_pyeong(code[:5], ym_list)
         if not price:
             continue  # 실거래 없는 집계/시단위 제외
-        acc = transit_min(lat, lng)
+        acc, hub = transit_min(lat, lng)
         sch = school_count(lat, lng)
         env = osm_environment(lat, lng)
         time.sleep(0.4)
         rows.append({
             "region": region, "price": price,
-            "transit_min": acc, "accessibility": -(acc if acc is not None else 999),
+            "transit_min": acc, "최단업무지구": hub, "accessibility": -(acc if acc is not None else 999),
             "school": sch or 0,
             "공원": env["공원"], "물": env["물"], "대형마트": env["대형마트"],
             "env": env["공원"] + env["물"] * 0.5 + env["대형마트"],
