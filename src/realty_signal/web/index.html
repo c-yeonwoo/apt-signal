@@ -168,6 +168,7 @@
         <div class="zinfo-pop" id="zinfoPop"></div>
       </div>
       <div class="haesol-panel" id="haesolPanel"></div>
+      <div class="haesol-panel" id="histPanel"></div>
       <div id="chart"></div>
     </div>
   </div>
@@ -845,6 +846,7 @@ async function selectRegion(region){
   if(_showHist && !_histCache[region]){
     _histCache[region] = (await (await fetch(`/api/signal-history/${encodeURIComponent(region)}`)).json()).intervals;
   }
+  renderHistPanel();
   drawChart(region, d.metrics, r);
 }
 function wrapKo(s, n){
@@ -970,7 +972,26 @@ async function toggleHist(){
   if(_showHist && selected && !_histCache[selected]){
     _histCache[selected] = (await (await fetch(`/api/signal-history/${encodeURIComponent(selected)}`)).json()).intervals;
   }
-  if(_lastM) drawChart(selected, _lastM, _lastSig);
+  renderHistPanel();
+  if(_lastM) { setTimeout(()=>chart && chart.resize(), 60); drawChart(selected, _lastM, _lastSig); }
+}
+// 지난 시그널 구간 목록(구간별 근거·기간/이후 수익률)
+function renderHistPanel(){
+  const p = document.getElementById('histPanel');
+  const iv = _showHist ? (_histCache[selected]||[]) : [];
+  if(!iv.length){ p.classList.remove('open'); p.innerHTML=''; return; }
+  const col = s => s==='STRONG_BUY'?'#16a34a':s==='SELL'?'#f87171':'#22c55e';
+  const rows = [...iv].reverse().map(h=>{
+    const dur = h['during_pct']!=null ? `<span style="color:${h['during_pct']>=0?'#4ade80':'#f87171'}">기간 ${h['during_pct']>0?'+':''}${h['during_pct']}%</span>`:'';
+    const aft = h['after12w_pct']!=null ? ` <span style="color:var(--dim)">→ 이후12주 ${h['after12w_pct']>0?'+':''}${h['after12w_pct']}%</span>`:'';
+    return `<div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--line);font-size:12px">
+      <span style="color:${col(h.signal)};font-weight:700;min-width:78px">${h.signal}</span>
+      <span style="color:var(--dim);min-width:150px">${h.start}~${h.end}</span>
+      <span style="flex:1">${h['근거']||''}</span>
+      <span style="white-space:nowrap">${dur}${aft}</span></div>`;
+  }).join('');
+  p.innerHTML = `<div style="font-weight:700;margin-bottom:4px">지난 시그널 구간 — 구간마다 근거가 다릅니다</div>${rows}`;
+  p.classList.add('open');
 }
 
 /* ---------- 경매 탭 ---------- */

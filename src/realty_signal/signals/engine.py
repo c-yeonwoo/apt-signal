@@ -211,6 +211,29 @@ def interpret(signal: str, jeonse_state: str, bs: float, demand_state: str,
     return ". ".join(parts[:2]) + "."
 
 
+def _hist_reason(kind: str, jv: float, bv: float, dv: float, mom_lbl: str, c: SignalConfig) -> str:
+    """과거 구간 시작 시점의 지표로 그 시그널의 근거 문장 생성 (구간마다 다름)."""
+    p = []
+    if kind == "SELL":
+        p.append(f"매매 {mom_lbl} 모멘텀" if mom_lbl == "하락" else "매매 약세")
+        if pd.notna(jv) and jv < c.jeonse_tight:
+            p.append(f"전세수급 약함({jv:.0f})")
+        if pd.notna(bv) and bv < c.buyeridx_strong * 0.5:
+            p.append(f"매수심리 위축({bv:.0f})")
+    else:
+        if pd.notna(jv) and jv >= c.jeonse_crunch:
+            p.append(f"전세난(전세수급 {jv:.0f})")
+        elif pd.notna(jv) and jv >= c.jeonse_tight:
+            p.append(f"전세 타이트({jv:.0f})")
+        if pd.notna(bv) and bv >= c.buyeridx_strong:
+            p.append(f"매수우위 강세({bv:.0f})")
+        elif pd.notna(dv) and dv >= c.demand_buy:
+            p.append(f"매수세 우위({dv:.0f})")
+        if mom_lbl == "상승":
+            p.append("상승 모멘텀")
+    return " · ".join(p) or "복합 신호"
+
+
 def signal_history(kb: KBWeekly, region: str, config: SignalConfig | None = None) -> list[dict]:
     """지역의 과거 주간 시그널을 역산해 STRONG_BUY/BUY 연속 구간 반환.
 
@@ -254,14 +277,16 @@ def signal_history(kb: KBWeekly, region: str, config: SignalConfig | None = None
             state = None
         kind = "SELL" if state == "SELL" else ("BUY" if state else None)  # 같은 종류끼리 연결
         if state and cur is None:
-            cur = {"start": str(d.date()), "signal": sig if state != "SELL" else "SELL", "_kind": kind}
+            cur = {"start": str(d.date()), "signal": sig if state != "SELL" else "SELL",
+                   "_kind": kind, "근거": _hist_reason(kind, jv, bv, dv, mom_lbl, c)}
         elif state and cur["_kind"] == kind:
             if state == "STRONG_BUY":
                 cur["signal"] = "STRONG_BUY"
         elif cur is not None:
             cur["end"] = str(dates[i - 1].date())
             intervals.append(cur)
-            cur = {"start": str(d.date()), "signal": sig if state != "SELL" else "SELL", "_kind": kind} if state else None
+            cur = {"start": str(d.date()), "signal": sig if state != "SELL" else "SELL",
+                   "_kind": kind, "근거": _hist_reason(kind, jv, bv, dv, mom_lbl, c)} if state else None
     if cur is not None:
         cur["end"] = str(dates[-1].date())
         intervals.append(cur)
