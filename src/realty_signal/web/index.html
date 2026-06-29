@@ -355,6 +355,7 @@ function switchTab(t){
   if(t==='presale') loadPresale();
   if(t==='conclusion') loadConclusion();
 }
+let _ccBudget=0, _ccPyeong=25.7;
 async function loadConclusion(){
   const capital = +document.getElementById('ccCapital').value || 0;
   const ltv = (+document.getElementById('ccLtv').value || 0) / 100;
@@ -363,6 +364,7 @@ async function loadConclusion(){
   if(capital <= 0){ box.innerHTML=''; empty.textContent='가용자본을 입력하세요.'; return; }
   empty.textContent='분석 중…'; box.innerHTML='';
   const d = await (await fetch(`/api/conclusion?capital=${capital}&ltv=${ltv}&pyeong=${pyeong}`)).json();
+  _ccBudget = d.budget; _ccPyeong = pyeong;
   const eok = n => n==null?'–':(n/10000).toFixed(1)+'억';
   document.getElementById('ccBudget').innerHTML =
     `매수가능 상한 <b style="color:var(--accent)">${eok(d.budget)}</b> (자본 ${eok(d.capital)} + 대출 LTV ${Math.round(d.ltv*100)}%) · 기준 ${pyeong}평`;
@@ -390,9 +392,33 @@ async function loadConclusion(){
         ${af?'':'<span class="pill">예산초과</span>'}
       </div>
       ${haesol?`<div style="font-size:12px;color:var(--dim);line-height:1.5;margin-bottom:8px">${haesol}</div>`:''}
-      ${ptrs.length?`<div style="display:flex;gap:6px">${ptrs.join('')}</div>`:''}`;
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        ${af?`<span class="pill" style="cursor:pointer;border-color:var(--accent);color:var(--accent)" onclick="expandCandidates('${c.region}',this)">예산 내 단지 ▾</span>`:''}
+        ${ptrs.join('')}
+      </div>
+      <div class="cc-cands"></div>`;
     box.appendChild(card);
   });
+}
+// 추천 지역 → 예산 내로 살 수 있는 단지를 급지 높은 순으로 (예산 내 최고 가성비 상급지)
+async function expandCandidates(region, el){
+  const wrap = el.closest('div').parentElement.querySelector('.cc-cands');
+  if(wrap.dataset.open==='1'){ wrap.innerHTML=''; wrap.dataset.open='0'; el.textContent='예산 내 단지 ▾'; return; }
+  el.textContent='로딩…';
+  const d = await (await fetch('/api/complex-grades/'+encodeURIComponent(region))).json();
+  el.textContent='예산 내 단지 ▲'; wrap.dataset.open='1';
+  const eok = n => (n/10000).toFixed(1)+'억';
+  // 단지별 예상 매수가 = 평단가 × 기준평형, 예산 내만, 급지 오름차순(상급지 먼저)→평단가 내림차순
+  const cands = (d.complexes||[])
+    .map(c=>({...c, 예상가: Math.round(c['평단가']*_ccPyeong)}))
+    .filter(c=>c.예상가 <= _ccBudget)
+    .sort((a,b)=> a['급지']-b['급지'] || b['평단가']-a['평단가'])
+    .slice(0,12);
+  if(!cands.length){ wrap.innerHTML='<div style="color:var(--dim);font-size:12px;padding:6px 0">예산 내 실거래 단지가 없습니다(시군구 단위만 지원).</div>'; return; }
+  wrap.innerHTML = `<div style="color:var(--dim);font-size:11px;margin:8px 0 4px">예산(${eok(_ccBudget)}) 내 ${_ccPyeong}평 기준 · 급지 높은 순</div>`
+    + cands.map(c=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;border-bottom:1px solid var(--line)">
+        <span>${gradeBadge(c['급지'])} ${c['단지']}</span>
+        <span><b>${eok(c.예상가)}</b> <span style="color:var(--dim)">${c['평단가']}만/평</span></span></div>`).join('');
 }
 let _presaleList=[];
 async function loadPresale(){
