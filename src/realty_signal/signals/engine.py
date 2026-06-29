@@ -292,7 +292,7 @@ def macro_trend(macro: dict) -> dict:
 
 def evaluate(
     kb: KBWeekly, config: SignalConfig | None = None, supply: pd.DataFrame | None = None,
-    macro: dict | None = None, volumes: dict | None = None,
+    macro: dict | None = None, volumes: dict | None = None, regime: dict | None = None,
 ) -> pd.DataFrame:
     """지역별 최신 시그널 테이블 산출. supply: 입주물량 공급압력 테이블(선택)."""
     c = config or SignalConfig()
@@ -366,6 +366,15 @@ def evaluate(
                 해설 += f" 최근 거래량이 평소의 {vr}배로 매수세가 유입되고 있습니다."
             elif vr <= 0.8:
                 reasons.append(f"거래량 위축({vr}배)")
+
+        # 급지역전(권역 끝물) — 수도권
+        rg = (regime or {}).get("regions", {}).get(region)
+        급지 = rg["급지"] if rg else None
+        if rg and rg.get("막차"):
+            reasons.append("막차경고(하급지 급등)")
+            해설 += " 하급지인데 최근 급등해 유동성 끝물의 막차 위험이 있습니다."
+        elif rg and (regime or {}).get("endgame"):
+            reasons.append("권역 끝물(급지역전)")
         if macro_clause:
             해설 += f" {macro_clause}입니다." if not 해설.rstrip().endswith("입니다.") else f" ({macro_clause})"
 
@@ -384,6 +393,7 @@ def evaluate(
                 f"전세{c.momentum_weeks}주": round(jeonse_avg, 3) if pd.notna(jeonse_avg) else None,
                 "공급압력": round(sp, 2) if pd.notna(sp) else None,
                 "거래량비": vr,
+                "급지": 급지,
                 "근거": " · ".join(reasons),
             }
         )

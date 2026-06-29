@@ -47,8 +47,17 @@ def _kb():
 
 
 @lru_cache(maxsize=1)
+def _regime():
+    from realty_signal.signals.regime import compute_regime
+    import json as _json
+    codes = _json.loads(store.CODES_FILE.read_text(encoding="utf-8")) if store.CODES_FILE.exists() else {}
+    return compute_regime(_kb(), store.load_localities(), codes)
+
+
+@lru_cache(maxsize=1)
 def _signals_df():
-    return evaluate(_kb(), SignalConfig(), store.load_supply(), store.load_macro(), store.load_volumes())
+    return evaluate(_kb(), SignalConfig(), store.load_supply(), store.load_macro(),
+                    store.load_volumes(), _regime())
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -62,6 +71,7 @@ def refresh():
     kb = store.fetch()
     _kb.cache_clear()
     _signals_df.cache_clear()
+    _regime.cache_clear()
     return {"ok": True, "last_date": str(kb.last_date.date()), "regions": len(kb.regions)}
 
 
@@ -210,6 +220,14 @@ def undervalued():
     for r in recs:
         r["시그널"] = sig.get(r["region"], "")
     return {"ready": True, "listings": recs}
+
+
+@app.get("/api/regime")
+def regime():
+    """수도권 급지역전 국면(유동성 신호등). regions 상세는 제외하고 요약만."""
+    r = dict(_regime())
+    r.pop("regions", None)
+    return r
 
 
 @app.get("/api/macro")

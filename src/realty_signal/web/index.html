@@ -124,6 +124,7 @@
 <div id="view-signal">
   <div class="wrap">
     <div class="side">
+      <div id="regimeBox" title="" style="display:none;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px;cursor:help"></div>
       <div class="sfilters">
         <input id="search" placeholder="🔍 지역 검색…" />
         <select id="groupFilter" onchange="renderList()">
@@ -567,6 +568,17 @@ async function loadData(){
   meta = await (await fetch('/api/meta')).json();
   document.getElementById('date').textContent = `최신 ${meta.last_date}`;
   allSignals = await (await fetch('/api/signals')).json();
+  try {
+    const rg = await (await fetch('/api/regime')).json();
+    const box = document.getElementById('regimeBox');
+    if(rg && rg.phase){
+      const C = {green:'#22c55e', yellow:'#eab308', orange:'#f97316', red:'#ef4444'}[rg.color]||'#94a3b8';
+      box.style.display='block'; box.title = rg.desc || '';
+      box.innerHTML = `<span style="color:${C}">●</span> <b>수도권 유동성</b>: `
+        + `<span style="color:${C};font-weight:700">${rg.phase}</span>`
+        + `<span style="color:var(--dim)"> · β ${rg.beta} · 급지갭 ${rg.gap}</span>`;
+    } else box.style.display='none';
+  } catch(e){}
   try {
     const mc = await (await fetch('/api/macro')).json();
     if(mc.dates) window._macro = {
