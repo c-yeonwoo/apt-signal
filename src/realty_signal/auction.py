@@ -69,6 +69,14 @@ class Listing:
     최근실거래가: float | None = None   # 국토부 동일단지 최근 매매(만원)
     최근전세가: float | None = None     # 국토부 동일단지 최근 전세(만원)
     건축년도: int | None = None         # 국토부 실거래 매칭 단지 건축년도
+    용적률: float | None = None         # 건축물대장 총괄표제부(%)
+    건폐율: float | None = None         # 건축물대장(%)
+    세대수: int | None = None           # 건축물대장 단지 세대수
+    최고층: int | None = None           # 건축물대장 최고층
+    단지평단가: int | None = None        # 국토부 실거래 단지 평단가(만/평)
+    단지급지: int | None = None          # 지역 내 급지 1~5 (1=최상급)
+    급지상위: int | None = None          # 지역 내 상위 N%
+    지역중앙대비: int | None = None      # 지역 중앙 평단가 대비 %
     메모: str = ""
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
 
@@ -189,8 +197,11 @@ def _recent_yms(n: int = 6) -> list[str]:
     return out
 
 
-def recent_trade_price(lawd5: str, dong: str, core: str, area: float, key: str) -> tuple[float, int] | tuple[None, None]:
-    """국토부 매매 실거래에서 동일단지(동+이름+면적) 최근 (거래금액 만원, 건축년도)."""
+def recent_trade_price(lawd5: str, dong: str, core: str, area: float, key: str):
+    """국토부 매매 실거래에서 동일단지(동+이름+면적) 최근 (거래금액 만원, 건축년도, 지번).
+
+    지번 = (bjdongCd, bonbun, bubun) — 건축물대장 조회용. 매칭 실패 시 (None, None, None).
+    """
     base = "https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev"
     best = None
     cn = _norm(core)
@@ -198,7 +209,8 @@ def recent_trade_price(lawd5: str, dong: str, core: str, area: float, key: str) 
         url = f"{base}?serviceKey={key}&LAWD_CD={lawd5}&DEAL_YMD={ym}&numOfRows=600&pageNo=1"
         try:
             root = ET.fromstring(urllib.request.urlopen(  # noqa: S310
-                urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=30).read())
+                urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "*/*"}),
+                timeout=30).read())
         except Exception:
             continue
         for it in root.iter("item"):
@@ -215,12 +227,13 @@ def recent_trade_price(lawd5: str, dong: str, core: str, area: float, key: str) 
                     continue
                 amt = float(it.findtext("dealAmount").replace(",", "").strip())
                 by = int(it.findtext("buildYear")) if (it.findtext("buildYear") or "").isdigit() else None
+                jibun = (it.findtext("umdCd") or "", it.findtext("bonbun") or "", it.findtext("bubun") or "")
                 d = (int(it.findtext("dealYear")), int(it.findtext("dealMonth")), int(it.findtext("dealDay")))
             except (ValueError, AttributeError, TypeError):
                 continue
             if best is None or d > best[0]:
-                best = (d, amt, by)
-    return (best[1], best[2]) if best else (None, None)
+                best = (d, amt, by, jibun)
+    return (best[1], best[2], best[3]) if best else (None, None, None)
 
 
 def recent_jeonse_price(lawd5: str, dong: str, core: str, area: float, key: str) -> float | None:
@@ -257,9 +270,13 @@ def recent_jeonse_price(lawd5: str, dong: str, core: str, area: float, key: str)
 
 
 def update_market(codes: dict, key: str) -> int:
-    """등록 매물의 최근 실거래가를 국토부에서 조회해 채운다. 갱신 건수 반환."""
+    """등록 매물의 최근 실거래가 + 건축물대장(용적률·세대수·연식)을 국토부에서 조회해 채운다."""
+    from realty_signal.ingest.building import fetch_building
+    from realty_signal.ingest.complex_grade import grade_in_region, region_grades
+
     listings = load()
     n = 0
+    grade_cache: dict[str, list] = {}  # 시군구별 단지 급지 랭킹 (실거래 호출 재사용)
     for lst in listings:
         code = codes.get(lst.region, "")
         if not (code and code.isdigit()):
@@ -267,12 +284,30 @@ def update_market(codes: dict, key: str) -> int:
         dong_m = re.search(r"([가-힣]+동)", lst.메모 or "")
         dong = dong_m.group(1) if dong_m else ""
         # 괄호 안 별칭(예: '(별내포스코더샵)')도 매칭에 쓰이도록 전체 단지명 사용
-        price, build_year = recent_trade_price(code[:5], dong, lst.단지명, lst.전용면적, key)
+        price, build_year, jibun = recent_trade_price(code[:5], dong, lst.단지명, lst.전용면적, key)
         if price:
             lst.최근실거래가 = price
             if build_year:
                 lst.건축년도 = build_year
             n += 1
+        # 실거래로 찾은 지번 → 건축물대장(용적률·건폐율·세대수·연식·층)
+        if jibun and jibun[1]:
+            b = fetch_building(code[:5], jibun[0], jibun[1], jibun[2], key)
+            if b:
+                lst.용적률 = b["용적률"] if b["용적률"] is not None else lst.용적률
+                lst.건폐율 = b["건폐율"] if b["건폐율"] is not None else lst.건폐율
+                lst.세대수 = b["세대수"] or lst.세대수
+                lst.최고층 = b["최고층"] or lst.최고층
+                if b["사용승인일"] and not lst.건축년도:  # 실거래 건축년도 없을 때 보강
+                    lst.건축년도 = int(b["사용승인일"][:4])
+        # 단지단위 급지 (지역 내 평단가 순위) — 시군구별 실거래 분포 1회만 호출
+        lawd5 = code[:5]
+        if lawd5 not in grade_cache:
+            grade_cache[lawd5] = region_grades(lawd5, key)
+        g = grade_in_region(lst.단지명, grade_cache[lawd5])
+        if g:
+            lst.단지평단가, lst.단지급지 = g["평단가"], g["급지"]
+            lst.급지상위, lst.지역중앙대비 = g["상위"], g["중앙대비"]
         jeonse = recent_jeonse_price(code[:5], dong, lst.단지명, lst.전용면적, key)  # 전월세 API 활성 시
         if jeonse:
             lst.최근전세가 = jeonse

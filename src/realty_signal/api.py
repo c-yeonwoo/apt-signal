@@ -210,6 +210,23 @@ def asdict_listing(lst):
     return asdict(lst)
 
 
+@lru_cache(maxsize=256)
+def _region_grades(region: str):
+    """시군구 단지별 급지 랭킹 (국토부 실거래 평단가 순위). 캐시."""
+    from realty_signal.ingest.complex_grade import region_grades
+    code = _kb().codes.get(region, "")
+    if not (code and code.isdigit() and code[2:5] != "000"):
+        return []  # 시군구 단위만 (광역/시도는 단지 랭킹 부적합)
+    config.load_env()
+    return region_grades(code[:5], config.public_data_key())
+
+
+@app.get("/api/complex-grades/{region}")
+def complex_grades(region: str):
+    """지역 내 단지단위 급지 랭킹 — 저평가 탭 드릴다운용."""
+    return {"region": region, "complexes": _region_grades(region)}
+
+
 @app.get("/api/undervalued")
 def undervalued():
     """수도권 시군구 저평가 랭킹 (입지 대비 가격). 시그널 등급 병합."""
@@ -234,12 +251,17 @@ def _presale():
     sig = _signal_map()
     codes = _kb().codes or {}
     sgg = {c[:5]: r for r, c in codes.items() if c and c.isdigit() and c[2:5] != "000"}
+    regions = _regime().get("regions", {})
     out = []
     for d in presale.fetch_presale():
         code = d["법정동코드"]
         region = sgg.get(code[:5]) or _SIDO.get(code[:2])
         d["지역"] = region or d.get("주소", "")
         d["시그널"] = sig.get(region, "")
+        rg = regions.get(region)  # 시군구 급지(평단가 분위 A~D) + 지역 평단가
+        if rg:
+            d["지역급지"] = rg.get("급지")
+            d["지역평단가"] = rg.get("평단가")
         out.append(d)
     return out
 
@@ -250,6 +272,52 @@ def presale_list():
     rank = {"STRONG_BUY": 0, "BUY": 1, "WATCH": 2, "NEUTRAL": 3, "SELL_RISK": 4, "": 5}
     items = sorted(_presale(), key=lambda d: (rank.get(d["시그널"], 5), d.get("분양시작") or "zzz"))
     return items
+
+
+@app.get("/api/conclusion")
+def conclusion(capital: float, ltv: float = 0.7, pyeong: float = 25.7):
+    """가용자본 → 매수가능가 → BUY+ × 저평가 × 단지급지 종합 추천 리포트.
+
+    capital: 자기자본(만원), ltv: 대출비율, pyeong: 기준 평형(기본 84㎡=25.7평).
+    경매·청약은 랭킹에 섞지 않고 '그 지역에 N건' 포인터로만 첨부.
+    """
+    from collections import Counter
+
+    budget = round(capital / max(1 - ltv, 0.05))  # 매수가능 상한(만원, 자본+대출)
+    sig = _signal_map()
+    loc = store.load_localities()
+    locmap = {}
+    if not loc.empty:
+        for r in json.loads(loc.to_json(orient="records", force_ascii=False)):
+            locmap[r["region"]] = r
+    auc_cnt = Counter(x.region for x in auction.load())
+    ps_cnt = Counter(d["지역"] for d in _presale() if d.get("시그널") in ("STRONG_BUY", "BUY"))
+    regions = _regime().get("regions", {})
+    rank = {"STRONG_BUY": 2, "BUY": 1}
+
+    cards = []
+    for region, s in sig.items():
+        if s not in rank:
+            continue
+        lr = locmap.get(region)
+        if not lr:
+            continue
+        price = lr.get("price")
+        est = round(price * pyeong) if price else None       # 84㎡ 예상 매수가(만원)
+        affordable = bool(est and est <= budget)
+        uv = lr.get("저평가도") or 0
+        score = rank[s] * 1000 + uv * 10 + (lr.get("입지점수") or 0)
+        rg = regions.get(region, {})
+        cards.append({
+            "region": region, "시그널": s, "평단가": price, "예상매수가": est,
+            "예산내": affordable, "저평가도": uv, "입지점수": lr.get("입지점수"),
+            "지역급지": rg.get("급지"), "해설": lr.get("해설"),
+            "경매건수": auc_cnt.get(region, 0), "청약건수": ps_cnt.get(region, 0),
+            "_score": round(score, 1),
+        })
+    # 예산 내 우선 → 점수순
+    cards.sort(key=lambda c: (c["예산내"], c["_score"]), reverse=True)
+    return {"budget": budget, "pyeong": pyeong, "ltv": ltv, "capital": capital, "cards": cards}
 
 
 @app.get("/api/regime")
