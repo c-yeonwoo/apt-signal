@@ -189,12 +189,21 @@
     </div>
     <div class="main">
       <div class="chartbar">
-        <button id="sideToggle" onclick="toggleSide()" title="목록 접기/펼치기">◀ 목록</button>
-        <span id="sigbadge"></span>
-        <button class="chip" id="histBtn" onclick="toggleHist()" style="white-space:nowrap">지난 시그널</button>
-        <button class="chip" id="haesolBtn" onclick="toggleHaesol()" style="white-space:nowrap">해설 ▾</button>
-        <button class="chip" id="zoneBtn" onclick="toggleZoneInfo(event)" style="white-space:nowrap">전세수급 색구간 ⓘ</button>
-        <div class="zinfo-pop" id="zinfoPop"></div>
+        <button id="sideToggle" onclick="toggleSide()" title="목록 접기/펼치기" style="font-size:15px">◀</button>
+        <span id="sigbadge" style="font-size:18px;font-weight:700"></span>
+        <span id="sigsub" style="color:var(--dim);font-size:12.5px"></span>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="font-size:12px;color:var(--dim);gap:5px;display:flex;align-items:center">보조축
+            <select id="secAxis" class="ctrl" onchange="redrawChart()" style="padding:5px 8px">
+              <option value="change">매매·전세 증감%</option>
+              <option value="rate">대출금리%</option>
+              <option value="volume">거래량</option>
+            </select></label>
+          <button class="chip" id="histBtn" onclick="toggleHist()" style="white-space:nowrap">📅 지난 시그널</button>
+          <button class="chip" id="haesolBtn" onclick="toggleHaesol()" style="white-space:nowrap">💬 해설</button>
+          <button class="chip" id="zoneBtn" onclick="toggleZoneInfo(event)" style="white-space:nowrap">🎨 전세수급 구간</button>
+          <div class="zinfo-pop" id="zinfoPop"></div>
+        </div>
       </div>
       <div class="haesol-panel" id="haesolPanel"></div>
       <div class="haesol-panel" id="histPanel"></div>
@@ -1136,7 +1145,9 @@ function toggleZoneInfo(e){
 async function selectRegion(region){
   selected = region; renderList();
   const r = allSignals.find(x => x.region===region);
-  document.getElementById('sigbadge').innerHTML = `<b>${region}</b> ${badge(r.signal)}`;
+  document.getElementById('sigbadge').innerHTML = `${region} ${badge(r.signal)}`;
+  const ss=document.getElementById('sigsub');
+  if(ss) ss.textContent = `전세수급 ${r['전세수급']??'–'} · 매수우위 ${r['매수우위지수']??'–'}` + (r['공급압력']!=null?` · 입주 ${r['공급압력']}x`:'');
   // 해설 패널 내용 채우기(버튼으로 펼침)
   const reasons = (r['근거']||'').split(' · ').filter(Boolean).map(x=>`<span class="rchip">${x}</span>`).join(' ');
   document.getElementById('haesolPanel').innerHTML =
@@ -1187,25 +1198,23 @@ function drawChart(region, m, sig){
       lineStyle:{type:'dashed',opacity:.4}, data:[{yAxis:meta.zones.buyer_idx_strong, name:'매수우위 강세', lineStyle:{color:'#7c3aed'}}]}});
   mk("buyer_demand", 0, { markLine:{ symbol:'none', label:{position:'insideEndTop',fontSize:10},
       lineStyle:{type:'dashed',opacity:.4}, data:[{yAxis:meta.zones.buyer_demand_buy, name:'매수신호', lineStyle:{color:'#16a34a'}}]}});
-  mk("sale_change", 1); mk("jeonse_change", 1);
   mk("price_index", 0, { lineStyle:{width:2.4, color:'#f1f5f9'}, z:3 });  // 누적 매매가격지수(실제 가격)
-
-  // 거시 오버레이: 주택구매력(지수축) + 주택담보대출금리(금리축)
   const mc = window._macro;
-  if(mc){
-    series.push({ name:'주택구매력', type:'line', yAxisIndex:0, showSymbol:false, z:0,
-      lineStyle:{width:1.2, type:'dashed', color:'#94a3b8'}, itemStyle:{color:'#94a3b8'},
-      data: mc.dates.map((dt,i)=>[dt, mc.구매력?.[i]]) });
-    series.push({ name:'대출금리%', type:'line', yAxisIndex:2, showSymbol:false, z:0,
-      lineStyle:{width:1.4, color:'#e11d48'}, itemStyle:{color:'#e11d48'},
-      data: mc.dates.map((dt,i)=>[dt, mc.대출금리?.[i]]) });
-  }
-  // 거래량(월별 거래건수) 막대 — 시군구만
-  if(_lastVol?.counts){
-    series.push({ name:'거래량(건)', type:'bar', yAxisIndex:3, z:-1, barWidth:'55%',
-      itemStyle:{color:'rgba(56,189,248,0.28)'},
-      data: _lastVol.dates.map((dt,i)=>[dt, _lastVol.counts[i]]) });
-  }
+  if(mc) series.push({ name:'주택구매력', type:'line', yAxisIndex:0, showSymbol:false, z:0,
+    lineStyle:{width:1.2, type:'dashed', color:'#94a3b8'}, itemStyle:{color:'#94a3b8'},
+    data: mc.dates.map((dt,i)=>[dt, mc.구매력?.[i]]) });
+
+  // 보조축(우측 1개) — 셀렉트로 전환: 증감% / 금리% / 거래량
+  const sec = (document.getElementById('secAxis')||{}).value || 'change';
+  if(sec==='change'){ mk("sale_change", 1); mk("jeonse_change", 1); }
+  else if(sec==='rate' && mc){ series.push({ name:'대출금리%', type:'line', yAxisIndex:1, showSymbol:false,
+      lineStyle:{width:1.8, color:'#e11d48'}, itemStyle:{color:'#e11d48'},
+      data: mc.dates.map((dt,i)=>[dt, mc.대출금리?.[i]]) }); }
+  else if(sec==='volume' && _lastVol?.counts){ series.push({ name:'거래량(건)', type:'bar', yAxisIndex:1, z:-1, barWidth:'55%',
+      itemStyle:{color:'rgba(37,99,235,0.30)'}, data: _lastVol.dates.map((dt,i)=>[dt, _lastVol.counts[i]]) }); }
+  const SEC = {change:{name:'증감%', color:'#059669', min:undefined},
+               rate:{name:'금리%', color:'#e11d48', min:0},
+               volume:{name:'거래량', color:'#2563eb', min:0}}[sec];
   // 지난 시그널(STRONG_BUY/BUY) 구간 반투명 오버레이
   if(_showHist && _histCache[region]?.length){
     const bandColor = s => s==='STRONG_BUY' ? 'rgba(34,197,94,0.20)'
@@ -1225,16 +1234,15 @@ function drawChart(region, m, sig){
   const allDates = (m.jeonse_supply || m.price_index || m.sale_change || {}).dates || [];
   const z0 = (_showHist && allDates.length) ? allDates[0] : start.toISOString().slice(0,10);
   chart.setOption({ tooltip:{trigger:'axis'},
-    // 범례는 좌측 상단(우측 세로축 이름과 겹치지 않게)
-    legend:{type:'scroll', top:6, left:46, right:150, textStyle:{fontSize:11}},
-    grid:{left:46, right:150, top:52, bottom:64}, xAxis:{type:'time'},
+    legend:{type:'scroll', top:6, left:46, right:70, textStyle:{fontSize:11}},
+    grid:{left:48, right:62, top:52, bottom:64}, xAxis:{type:'time'},
     yAxis:[{name:'지수', min:0, max:200, splitLine:{lineStyle:{opacity:.12}}, nameGap:12},
-           {name:'증감%', position:'right', splitLine:{show:false}, nameGap:12},
-           {name:'금리%', position:'right', offset:50, min:0, splitLine:{show:false}, axisLabel:{color:'#e11d48'}, nameTextStyle:{color:'#e11d48'}, nameGap:12},
-           {name:'거래량', position:'right', offset:100, min:0, splitLine:{show:false}, axisLabel:{color:'#0284c7'}, nameTextStyle:{color:'#0284c7'}, nameGap:12}],
+           {name:SEC.name, position:'right', min:SEC.min, splitLine:{show:false},
+            axisLabel:{color:SEC.color}, nameTextStyle:{color:SEC.color}, nameGap:12}],
     dataZoom:[{type:'inside', startValue:z0, endValue:last}, {type:'slider', startValue:z0, endValue:last, height:22, bottom:14}],
     series }, true);
 }
+function redrawChart(){ if(_lastM && selected) drawChart(selected, _lastM, _lastSig); }
 async function doRefresh(){
   const btn = document.getElementById('refresh'); btn.disabled = true; const old = btn.textContent; btn.textContent = '갱신 중…';
   try { const r = await (await fetch('/api/refresh', {method:'POST'})).json(); await loadData();
