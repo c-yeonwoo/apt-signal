@@ -137,6 +137,13 @@
   .grid2 label { font-size:12px; color:var(--dim); display:flex; flex-direction:column; gap:3px; }
   .grid2 input { background:#ffffff; border:1px solid var(--line); color:var(--txt); border-radius:6px; padding:5px 7px; }
   .dlg-foot { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
+  /* 마이페이지 — 섹션 헤더 + 시원한 세로 리듬 */
+  .mp-sec { font-weight:700; font-size:13px; color:var(--accent); letter-spacing:.2px;
+            margin:26px 0 14px; padding-top:16px; border-top:1px solid var(--line); }
+  .mp-sec:first-of-type { margin-top:4px; }
+  #view-mypage .grid2 { gap:18px 18px; }
+  #view-mypage .grid2 label { font-size:13px; gap:6px; }
+  #view-mypage .ctrl { padding:9px 11px; font-size:14px; }
 
   /* ===== 모바일 반응형 (≤760px) ===== */
   @media (max-width:760px){
@@ -565,23 +572,38 @@
     <span class="btn" style="padding:5px 13px" onclick="switchTab('signal')">← 홈</span>
   </div>
 
-  <div id="mp_summary" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px"></div>
+  <div id="mp_summary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px"></div>
 
-  <div style="font-weight:700;font-size:15px;margin-bottom:12px;padding-top:10px;border-top:1px solid var(--line)">프로필 수정</div>
+  <div class="mp-sec">기본 정보</div>
   <div class="grid2">
     <label>주택 보유<br><select id="mp_own" class="ctrl" style="width:100%"><option value="0">무주택</option><option value="1">1주택</option><option value="2">다주택</option></select></label>
-    <label>무주택 기간(년)<br><input id="mp_nohouse" type="number" min="0" class="ctrl" style="width:100%"></label>
-    <label>가용 자본(만원)<br><input id="mp_capital" type="number" placeholder="예: 50000" class="ctrl" style="width:100%"></label>
-    <label>총자산(만원, 선택)<br><input id="mp_asset" type="number" class="ctrl" style="width:100%"></label>
-    <label>관심 평수<br><select id="mp_size" class="ctrl" style="width:100%"><option value="">전체</option><option value="s">소형 (~60㎡)</option><option value="m">중형 (60~85㎡)</option><option value="l">대형 (85㎡~)</option></select></label>
     <label>거주지(시군구)<br><input id="mp_region" placeholder="예: 노원구" class="ctrl" style="width:100%"></label>
-    <label>부양가족 수<br><input id="mp_family" type="number" min="0" class="ctrl" style="width:100%"></label>
-    <label>청약통장 가입(개월)<br><input id="mp_account" type="number" min="0" class="ctrl" style="width:100%"></label>
+    <label>관심 평수<br><select id="mp_size" class="ctrl" style="width:100%"><option value="">전체</option><option value="s">소형 (~60㎡)</option><option value="m">중형 (60~85㎡)</option><option value="l">대형 (85㎡~)</option></select></label>
+    <label>출생연도<br><input id="mp_birth" type="number" min="1940" max="2010" placeholder="예: 1990" class="ctrl" style="width:100%"></label>
   </div>
-  <div id="mp_gajeom" style="margin-top:14px;font-size:12px;color:var(--dim)"></div>
 
-  <button class="btn" onclick="saveMyPage()" style="width:100%;margin-top:18px;background:var(--accent);color:#fff;font-weight:700;padding:12px;font-size:15px">프로필 저장</button>
-  <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:13px">
+  <div class="mp-sec">자금 — 매수가능가 계산에 사용</div>
+  <div class="grid2">
+    <label>가용 자본(만원)<br><input id="mp_capital" type="number" placeholder="예: 50000" class="ctrl" style="width:100%"></label>
+    <label>연소득(만원)<br><input id="mp_income" type="number" placeholder="DSR 한도 계산" class="ctrl" style="width:100%"></label>
+    <label>총자산(만원, 선택)<br><input id="mp_asset" type="number" class="ctrl" style="width:100%"></label>
+    <label>기대출 연원리금(만원)<br><input id="mp_debt" type="number" min="0" placeholder="0" class="ctrl" style="width:100%"></label>
+  </div>
+
+  <div class="mp-sec">청약 자격</div>
+  <div class="grid2">
+    <label>무주택 기간(년)<br><input id="mp_nohouse" type="number" min="0" class="ctrl" style="width:100%"></label>
+    <label>청약통장 가입(개월)<br><input id="mp_account" type="number" min="0" class="ctrl" style="width:100%"></label>
+    <label>부양가족 수<br><input id="mp_family" type="number" min="0" class="ctrl" style="width:100%"></label>
+    <label>자녀 수<br><input id="mp_children" type="number" min="0" class="ctrl" style="width:100%"></label>
+    <label>혼인 상태<br><select id="mp_marital" class="ctrl" style="width:100%"><option value="">선택</option><option value="single">미혼</option><option value="newly">예비·신혼(7년 이내)</option><option value="married">기혼</option></select></label>
+    <label>무주택 세대주<br><select id="mp_householder" class="ctrl" style="width:100%"><option value="">선택</option><option value="1">예</option><option value="0">아니오</option></select></label>
+    <label>생애최초 주택구입<br><select id="mp_firsthome" class="ctrl" style="width:100%"><option value="">선택</option><option value="1">예</option><option value="0">아니오</option></select></label>
+  </div>
+  <div id="mp_gajeom" style="margin-top:16px;font-size:12px;color:var(--dim)"></div>
+
+  <button class="btn" onclick="saveMyPage()" style="width:100%;margin-top:24px;background:var(--accent);color:#fff;font-weight:700;padding:13px;font-size:15px">프로필 저장</button>
+  <div style="display:flex;justify-content:space-between;margin-top:18px;font-size:13px">
     <span onclick="openBoard()" style="cursor:pointer;color:var(--accent)">★ 내 보드 보기</span>
     <span onclick="logout()" style="cursor:pointer;color:#dc2626">로그아웃</span>
   </div>
@@ -1682,6 +1704,13 @@ function fillMyPage(){
   document.getElementById('mp_region').value = p['거주지']||'';
   document.getElementById('mp_family').value = p['부양가족']??'';
   document.getElementById('mp_account').value = p['청약통장개월']??'';
+  document.getElementById('mp_income').value = p['연소득']??'';
+  document.getElementById('mp_debt').value = p['기대출연원리금']??'';
+  document.getElementById('mp_birth').value = p['출생연도']??'';
+  document.getElementById('mp_children').value = p['자녀수']??'';
+  document.getElementById('mp_marital').value = p['혼인상태']||'';
+  document.getElementById('mp_householder').value = p['세대주']!=null ? String(p['세대주']) : '';
+  document.getElementById('mp_firsthome').value = p['생애최초']!=null ? String(p['생애최초']) : '';
   renderMyPageSummary();
 }
 function openMyPage(){ switchTab('mypage'); }   // 하위호환 — 별도 페이지로 이동
@@ -1694,7 +1723,8 @@ function renderMyPageSummary(){
     <div style="font-size:11px;color:var(--dim)">${label}</div><div style="font-weight:700;font-size:14px">${val}</div></div>`;
   document.getElementById('mp_summary').innerHTML =
     chip('주택', own) + chip('거주지', p['거주지']||'–') +
-    chip('가용자본', p['가용자본']?_eok(p['가용자본']):'–') + chip('관심평수', sz) +
+    chip('가용자본', p['가용자본']?_eok(p['가용자본']):'–') +
+    chip('연소득', p['연소득']?_eok(p['연소득']):'–') + chip('관심평수', sz) +
     chip('청약가점', `${g.total}점`);
   document.getElementById('mp_gajeom').innerHTML =
     `청약가점 <b style="color:var(--txt)">${g.total}/84</b> — 무주택 ${g.무주택}/32 · 부양가족 ${g.부양}/35 · 통장 ${g.통장}/17`;
@@ -1703,7 +1733,11 @@ function saveMyPage(){
   const v=id=>document.getElementById(id).value;
   _profile = {주택수:+v('mp_own'), 무주택기간:+v('mp_nohouse')||0, 가용자본:+v('mp_capital')||0,
     총자산:+v('mp_asset')||0, 관심평수:v('mp_size'), 거주지:v('mp_region').trim(),
-    부양가족:+v('mp_family')||0, 청약통장개월:+v('mp_account')||0};
+    부양가족:+v('mp_family')||0, 청약통장개월:+v('mp_account')||0,
+    연소득:+v('mp_income')||0, 기대출연원리금:+v('mp_debt')||0, 출생연도:+v('mp_birth')||0,
+    자녀수:+v('mp_children')||0, 혼인상태:v('mp_marital'),
+    세대주:v('mp_householder')===''?null:+v('mp_householder'),
+    생애최초:v('mp_firsthome')===''?null:+v('mp_firsthome')};
   fetch('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(_profile)});
   renderMyPageSummary(); applyProfileHeader(); applyProfileDefaults();
   toast('프로필을 저장했습니다.');
@@ -1749,6 +1783,7 @@ async function openAlerts(){
 function applyProfileDefaults(){
   // 프로필 → 결론 자본·평수, 경매 평형 기본값 선반영
   const cap=document.getElementById('ccCapital'); if(cap && _profile['가용자본']) cap.value=_profile['가용자본'];
+  const inc=document.getElementById('ccIncome'); if(inc && _profile['연소득']) inc.value=_profile['연소득'];
   const pmap={s:'17.4',m:'25.7',l:'35.4'};
   const py=document.getElementById('ccPyeong'); if(py && pmap[_profile['관심평수']]) py.value=pmap[_profile['관심평수']];
   const fs=document.getElementById('fSize'); if(fs && _profile['관심평수']) fs.value=_profile['관심평수'];
