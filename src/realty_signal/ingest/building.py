@@ -36,7 +36,13 @@ def _f(it, tag: str) -> float:
 
 
 def fetch_building(sgg: str, umd: str, bonbun: str, bubun: str, key: str) -> dict | None:
-    """지번 → 단지 단위 {용적률, 건폐율, 사용승인일, 세대수, 최고층}. 데이터 없으면 None."""
+    """지번 → 단지 단위 {용적률, 건폐율, 사용승인일, 세대수, 최고층}. SQLite 캐시 우선."""
+    from realty_signal import db
+    ckey = f"{sgg}-{umd}-{bonbun}-{bubun}"
+    cached = db.building_get(ckey)
+    if cached is not None:
+        return cached if (cached.get("사용승인일") or cached.get("세대수") or cached.get("용적률")) else None
+
     # 동별 표제부: 세대수·연식·층
     useaps, hhlds, flrs = [], [], []
     for it in _items("getBrTitleInfo", sgg, umd, bonbun, bubun, key):
@@ -66,11 +72,14 @@ def fetch_building(sgg: str, umd: str, bonbun: str, bubun: str, key: str) -> dic
 
     세대수 = sum(hhlds) if hhlds else (recap_hhld or None)
     if not (useaps or 세대수 or vlrat):
+        db.building_set(ckey, None)   # 빈 결과도 캐시(재조회 방지)
         return None
-    return {
+    result = {
         "용적률": vlrat,                              # % (구축은 미기재→None)
         "건폐율": bcrat,                              # %
         "사용승인일": min(useaps) if useaps else None,  # YYYYMMDD
         "세대수": 세대수,
         "최고층": max(flrs) if flrs else None,
     }
+    db.building_set(ckey, result)
+    return result

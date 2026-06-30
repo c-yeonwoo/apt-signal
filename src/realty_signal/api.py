@@ -498,20 +498,18 @@ def redev_candidates(region: str):
     return {"region": region, "시그널": sig.get(region, ""), "candidates": _redev_candidates(region)}
 
 
-REDEV_PROGRESS_FILE = store.CACHE_DIR / "redev_progress.json"
-
-
 @lru_cache(maxsize=1)
 def _redev_progress():
-    """정비사업 추진경과(30k행) — 디스크 캐시 우선(전수 페이징이 느려서)."""
+    """정비사업 추진경과(≈3만행) — SQLite(db.redev_progress) 우선, 없으면 수집·적재."""
+    from realty_signal import db
     from realty_signal.ingest import redevelopment as rd
-    if REDEV_PROGRESS_FILE.exists():
-        return json.loads(REDEV_PROGRESS_FILE.read_text(encoding="utf-8"))
+    if db.redev_count() > 0:
+        return db.redev_rows()
     config.load_env()
     key = config.seoul_key()
     rows = rd.fetch_progress(key) if key else []
     if rows:
-        REDEV_PROGRESS_FILE.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+        db.redev_replace(rows)
     return rows
 
 
@@ -547,16 +545,14 @@ def redev_value_calc(current_price: float, pyeong: float, presale_pyeong_price: 
 
 
 def _region_centroid(region: str, code: str) -> tuple[float, float] | None:
-    """시군구 중심좌표 (geocode 결과 캐시)."""
-    geo = {}
-    if REGION_GEO_FILE.exists():
-        geo = json.loads(REGION_GEO_FILE.read_text(encoding="utf-8"))
-    if region in geo:
-        return tuple(geo[region]) if geo[region] else None
+    """시군구 중심좌표 (SQLite db.region_geo 캐시)."""
+    from realty_signal import db
+    cached = db.region_get(region)
+    if cached:
+        return tuple(cached)
     from realty_signal.ingest.locality import geocode
     c = geocode(region, code)
-    geo[region] = list(c) if c else None
-    REGION_GEO_FILE.write_text(json.dumps(geo, ensure_ascii=False), encoding="utf-8")
+    db.region_set(region, list(c) if c else None)
     return c
 
 
