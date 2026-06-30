@@ -160,7 +160,7 @@
     <button class="tab" data-tab="quicksale" onclick="switchTab('quicksale')">급매</button>
     <button class="tab" data-tab="presale" onclick="switchTab('presale')">청약</button>
     <button class="tab" data-tab="redev" onclick="switchTab('redev')">재건축</button>
-    <button class="tab" data-tab="conclusion" onclick="switchTab('conclusion')">결론</button>
+    <button class="tab" data-tab="conclusion" onclick="switchTab('conclusion')">✨ AI 리포트</button>
   </div>
   <div class="right">
     <button class="chip" onclick="openBoard()" style="font-size:12px">★ 내 보드</button>
@@ -381,8 +381,9 @@
 </div>
 
 <div id="view-conclusion" style="display:none">
-  <h2 style="margin:0 0 4px">종합 추천 — 가용자본으로 어디를 살까</h2>
-  <p style="color:var(--dim);font-size:13px;margin:0 0 14px">매수 시그널(STRONG_BUY/BUY) 지역 × 저평가도 × 단지급지를 종합해 매수가능 범위 내 우선순위를 매깁니다. 경매·청약은 "그 지역에 N건" 포인터로 첨부.</p>
+  <h2 style="margin:0 0 4px">✨ AI 개인화 리포트</h2>
+  <p style="color:var(--dim);font-size:13px;margin:0 0 14px">내 프로필(주택수·예산·거주지·평수)과 시그널·저평가·급매·청약·재건축을 종합해 <b>나에게 맞는 매수 전략</b>을 리포트로 만듭니다.</p>
+  <div id="aiReport" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px 18px;margin-bottom:16px;line-height:1.7;font-size:14px;display:none"></div>
   <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;background:#ffffff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:16px">
     <label>가용자본(자기자본)<br><input id="ccCapital" type="number" value="30000" style="width:120px"> <span style="color:var(--dim)">만원</span></label>
     <label>대출비율(LTV)<br><input id="ccLtv" type="number" value="70" min="0" max="90" style="width:70px"> %</label>
@@ -771,6 +772,34 @@ function calcLoan(){
     </div>`;
 }
 const loanBtn=(price,label)=>`<span class="btn" style="padding:3px 11px;margin-top:7px;display:inline-block;background:var(--accent);color:#fff" onclick="event.stopPropagation();openLoanCalc(${Math.round(price||0)},'${(label||'').replace(/'/g,'')}')">💰 대출계산</span>`;
+// 프로필 + 종합 데이터 → 개인화 내러티브 리포트
+function renderAiReport(d, eok){
+  const el=document.getElementById('aiReport'); if(!el) return;
+  const p=_profile||{};
+  const own = p['주택수']===0?'무주택':(p['주택수']===1?'1주택':(p['주택수']>=2?'다주택':null));
+  const inb = d.cards.filter(c=>c['예산내']);
+  const top3 = inb.slice(0,3);
+  const danghae = inb.reduce((a,c)=>a+(c['청약건수']||0),0);
+  const quick = inb.reduce((a,c)=>a+(c['급매건수']||0),0);
+  const homeCard = p['거주지'] ? d.cards.find(c=>c.region===p['거주지']) : null;
+
+  const lines=[];
+  const who=[own, p['거주지']?`${p['거주지']} 거주`:null, p['관심평수']?{s:'소형',m:'중형',l:'대형'}[p['관심평수']]+' 관심':null].filter(Boolean).join(' · ');
+  lines.push(`<b>${who||'회원님'}</b> 기준, 매수가능 <b style="color:var(--accent)">${eok(d.budget)}</b> 범위에서 매수 시그널(BUY+) 지역 <b>${inb.length}곳</b>이 잡힙니다.`);
+  if(top3.length){
+    lines.push(`가장 추천하는 곳은 ` + top3.map((c,i)=>`<b>${c.region}</b>(${c['시그널']==='STRONG_BUY'?'강력매수':'매수'}${c['저평가도']>0?`·저평가 +${c['저평가도']}%`:''})`).join(', ') + ` 입니다.`);
+    const t=top3[0];
+    lines.push(`특히 <b>${t.region}</b>는 평단 ${t['평단가']}만, 84㎡ 예상 ${eok(t['예상매수가'])}로 ${t['저평가도']>0?'입지 대비 저평가':'시세 수준'} 구간입니다.`);
+  }
+  if(homeCard) lines.push(`거주지 <b>${p['거주지']}</b>는 현재 ${badge(homeCard['시그널']||'')} — ${homeCard['예산내']?'예산 내 매수 검토 가능':'예산 초과(자본·대출 점검 필요)'}.`);
+  if(danghae) lines.push(`🏠 거주지 우선 <b>당해 청약</b>을 포함해 추천 지역 청약 <b>${danghae}건</b>이 진행/예정입니다.`);
+  if(quick) lines.push(`🏷️ 추천 지역에서 시세 이하 <b>급매 ${quick}건</b>이 포착됐습니다.`);
+  lines.push(`<span style="color:var(--dim)">다음 행동: 위 추천 카드에서 단지·급매·청약을 눌러 ★ 즐겨찾기 → 내 보드에서 추적하세요.</span>`);
+
+  el.innerHTML = `<div style="font-weight:700;margin-bottom:8px;font-size:15px">✨ ${_userEmail||'회원'}님을 위한 매수 전략 리포트</div>`
+    + lines.map(l=>`<div style="margin:5px 0">• ${l}</div>`).join('');
+  el.style.display='block';
+}
 let _ccBudget=0, _ccPyeong=25.7;
 async function loadConclusion(){
   const capital = +document.getElementById('ccCapital').value || 0;
@@ -792,6 +821,7 @@ async function loadConclusion(){
     + `<span style="color:var(--dim)">= 자본 ${eok(d.capital)} + 대출 ${eok(dt['대출'])} − 취득세 ${eok(dt['취득세'])} − 중개 ${eok(dt['중개비'])}</span>${dsrNote} · 기준 ${pyeong}평`;
   const inb = d.cards.filter(c=>c['예산내']);
   empty.textContent = inb.length ? '' : '예산 범위 내 매수 시그널 지역이 없습니다. 자본·LTV·평형을 조정해보세요.';
+  renderAiReport(d, eok);
   d.cards.forEach((c,i)=>{
     const af = c['예산내'];
     const uv = c['저평가도'];
