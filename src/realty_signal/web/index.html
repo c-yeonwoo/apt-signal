@@ -62,6 +62,8 @@
             align-items:center; gap:14px; flex-wrap:wrap; }
   #reasons { display:flex; gap:6px; flex-wrap:wrap; flex:1 1 360px; min-width:240px; }
   .rchip { font-size:12px; padding:3px 9px; border-radius:12px; background:#eef2f7; border:1px solid var(--line); }
+  .gwon { display:inline-block; font-size:10px; color:#92710e; background:#fef3c7; border:1px solid #fde68a;
+          border-radius:6px; padding:0 5px; margin-left:4px; vertical-align:middle; cursor:help; font-weight:600; }
   .zlegend { display:flex; gap:4px; margin-left:auto; align-items:center; }
   /* 지역 트리 */
   .ghead { padding:8px 12px; font-weight:700; font-size:13px; cursor:pointer; background:#f1f5f9;
@@ -1248,13 +1250,17 @@ function rowEl(r, lv){
   const row = document.createElement('div');
   row.className = `row${lv?' lv'+lv:''}` + (selected===r.region?' sel':'');
   row.style.borderLeft = `3px solid ${_SIGC[r.signal]||'#cbd5e1'}`;   // 시그널 색 강조
-  const sp = r['공급압력']==null?'':` · 입주 ${r['공급압력']}x`;
+  // 구별 차별 지표(매매모멘텀·입주)를 앞세우고, 권역 공통 수급은 뒤에 흐리게 + 칩 표기
+  const sp = r['공급압력']==null?'':`입주 ${r['공급압력']}x`;
+  const mom = r['매매모멘텀'] && r['매매모멘텀']!=='보합' ? `매매 ${r['매매모멘텀']}` : '';
+  const diff = [mom, sp].filter(Boolean).join(' · ');
+  const shared = `전세 ${r['전세수급']??'–'}·매수우위 ${r['매수우위지수']??'–'}`;
   // 경기 일반구는 '구명'만 짧게 표기
   const disp = lv===2 ? r.region.split(' ').slice(1).join(' ')||r.region : r.region;
   const faved = _favs.has('region:'+r.region);
   row.innerHTML = `<span class="nm">${disp}</span>${badge(r.signal)}
     <span class="fav" title="즐겨찾기" style="cursor:pointer;color:${faved?'#f59e0b':'var(--line)'};margin-left:auto">${faved?'★':'☆'}</span>
-    <span class="mn">전세 ${r['전세수급']??'–'} · 매수우위 ${r['매수우위지수']??'–'}${sp}${gwonLabel(r['수급출처'])}</span>`;
+    <span class="mn">${diff?`<b style="color:var(--txt)">${diff}</b> · `:''}<span style="color:var(--dim)">${shared}</span>${gwonLabel(r['수급출처'])}</span>`;
   row.querySelector('.fav').onclick = (e)=>{ e.stopPropagation(); toggleFav('region', r.region, r.region); };
   row.onclick = () => selectRegion(r.region);
   return row;
@@ -1263,7 +1269,7 @@ function rowEl(r, lv){
 function gwonLabel(src){
   if(!src) return '';
   const s = src.replace('14개구','권').replace('11개구','권');
-  return ` <span style="color:#94a3b8;font-size:11px" title="KB는 전세수급·매수우위를 ${src} 단위로만 발표합니다. 이 두 지표는 ${s} 공통값이며, 구별 차별화는 매매모멘텀·입주물량·저평가·급지에서 나옵니다.">·${s}공통</span>`;
+  return ` <span class="gwon" title="KB는 전세수급·매수우위를 ${src} 단위로만 발표합니다. 이 두 지표는 ${s} 공통값이며, 구별 차별화는 매매모멘텀·입주물량·저평가·급지에서 나옵니다.">${s} 공통</span>`;
 }
 function header(cls, key, label, count, lv){
   const h = document.createElement('div'); h.className = cls;
@@ -1845,7 +1851,7 @@ async function openBoard(){
   document.getElementById('boardBody').innerHTML = favs.length ? favs.map(f=>{const s=sm[f.key]||{};
     return `<div onclick="document.getElementById('boardDlg').close();switchTab('signal');selectRegion('${f.key}')" style="cursor:pointer;display:flex;justify-content:space-between;padding:9px 4px;border-bottom:1px solid var(--line)">
       <span style="color:#f59e0b">★ <b style="color:var(--txt)">${f.label}</b> ${s.signal?badge(s.signal):''}</span>
-      <span style="color:var(--dim);font-size:12px">전세 ${s['전세수급']??'–'} · 매수우위 ${s['매수우위지수']??'–'}</span></div>`;}).join('')
+      <span style="color:var(--dim);font-size:12px">전세 ${s['전세수급']??'–'} · 매수우위 ${s['매수우위지수']??'–'}${gwonLabel(s['수급출처'])}</span></div>`;}).join('')
     : '<p style="color:var(--dim)">아직 즐겨찾기한 지역이 없습니다. 시그널 목록에서 ☆를 눌러 추가하세요.</p>';
   document.getElementById('boardDlg').showModal();
 }
