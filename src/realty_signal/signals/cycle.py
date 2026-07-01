@@ -52,3 +52,44 @@ def current_phase(kb, region: str = "서울") -> dict | None:
         "jeonse": jsv,
         "asof": str(sale.index[-1].date()),
     }
+
+
+def cycle_history(kb, region: str = "서울") -> list[dict]:
+    """지역 시기별 경기 국면 타임라인 — 매매 모멘텀(방향)×가속도(2x2)로 회복/상승/후퇴/침체 밴드.
+
+    가격만으로 산출(지역별 고유) → 지역마다 곡선이 다름. 잡음 방지 위해 12주 평활 + 짧은 밴드 병합.
+    """
+    import pandas as pd
+    sale = kb.series(region, "sale_change").dropna()
+    if len(sale) < 24:
+        return []
+    mom = sale.rolling(12, min_periods=6).mean()
+    prev = mom.shift(12)
+    seq = []
+    for d in sale.index:
+        m, p = mom.get(d), prev.get(d)
+        if m is None or p is None or pd.isna(m) or pd.isna(p):
+            continue
+        rising, accel = (m >= 0), ((m - p) >= 0)
+        phase = ("상승기" if (rising and accel) else "후퇴기" if (rising and not accel)
+                 else "회복기" if ((not rising) and accel) else "침체기")
+        seq.append((d, phase))
+    if not seq:
+        return []
+    # 연속 동일 국면 병합
+    bands = []
+    for d, ph in seq:
+        if bands and bands[-1]["phase"] == ph:
+            bands[-1]["end"] = str(d.date()); bands[-1]["_n"] += 1
+        else:
+            bands.append({"start": str(d.date()), "end": str(d.date()), "phase": ph, "_n": 1})
+    # 짧은 밴드(<8주) 직전 밴드로 흡수 → 깜빡임 제거
+    merged = []
+    for b in bands:
+        if merged and b["_n"] < 8:
+            merged[-1]["end"] = b["end"]
+        else:
+            merged.append(b)
+    for b in merged:
+        b.pop("_n", None)
+    return merged
