@@ -275,6 +275,17 @@ def index():
     return (WEB_DIR / "index.html").read_text(encoding="utf-8")
 
 
+@app.get("/sudo_gu.geojson")
+def sudo_gu_geojson():
+    """수도권(서울·인천·경기) 시군구 경계 — 저평가 탭 급지 지도용(단순화 번들)."""
+    from fastapi.responses import Response
+    p = WEB_DIR / "sudo_gu.geojson"
+    if not p.exists():
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return Response(p.read_text(encoding="utf-8"), media_type="application/geo+json",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.post("/api/refresh")
 def refresh():
     """KB 데이터허브에서 최신 지표를 재수집하고 캐시/시그널을 갱신."""
