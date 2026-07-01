@@ -12,8 +12,8 @@
   :root {
     /* 표면·텍스트 */
     --bg:#f8fafc; --panel:#ffffff; --line:#e2e8f0; --txt:#1e293b; --dim:#64748b;
-    /* 브랜드 — 오션블루 (로고와 통일) */
-    --accent:#0ea5e9; --accent-ink:#ffffff; --accent-weak:rgba(14,165,233,.10); --ring:rgba(14,165,233,.22);
+    /* 브랜드 — 로열블루 #2563eb (로고와 통일) */
+    --accent:#2563eb; --accent-ink:#ffffff; --accent-weak:rgba(37,99,235,.10); --ring:rgba(37,99,235,.22);
     /* 시그널·의미 색 (단일 소스) */
     --sig-strong:#22c55e; --sig-buy:#16a34a; --sig-watch:#d97706; --sig-neutral:#94a3b8; --sig-sell:#dc2626;
     --quick:#ea580c; --success:#16a34a; --danger:#dc2626; --warn:#d97706;
@@ -25,7 +25,7 @@
   select, input[type=number], input[type=text], .ctrl {
     font-size:14px; padding:7px 11px; border:1px solid var(--line); border-radius:8px;
     background:#fff; color:var(--txt); outline:none; }
-  select:focus, input:focus, .ctrl:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(14,165,233,.12); }
+  select:focus, input:focus, .ctrl:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
   .filterbar { display:flex; gap:14px; align-items:center; flex-wrap:wrap;
     background:#fff; border:1px solid var(--line); border-radius:10px; padding:11px 14px; margin-bottom:14px; }
   .filterbar label { font-size:13px; color:var(--dim); display:flex; align-items:center; gap:7px; white-space:nowrap; }
@@ -98,13 +98,13 @@
     padding:34px 32px; box-shadow:0 20px 60px rgba(2,32,71,.12), 0 2px 8px rgba(0,0,0,.04); }
   .auth-brand { display:flex; align-items:center; gap:13px; margin-bottom:18px; }
   .auth-points { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:22px; }
-  .auth-points span { font-size:11.5px; color:var(--accent); background:rgba(14,165,233,.08);
-    border:1px solid rgba(14,165,233,.18); border-radius:20px; padding:4px 10px; font-weight:600; }
+  .auth-points span { font-size:11.5px; color:var(--accent); background:rgba(37,99,235,.08);
+    border:1px solid rgba(37,99,235,.18); border-radius:20px; padding:4px 10px; font-weight:600; }
   .auth-field { margin-bottom:13px; }
   .auth-field label { display:block; font-size:12px; color:var(--dim); font-weight:600; margin-bottom:5px; }
   .auth-field input { width:100%; padding:12px 13px; font-size:14px; border:1px solid var(--line);
     border-radius:11px; background:#fff; color:var(--txt); outline:none; transition:border-color .12s, box-shadow .12s; }
-  .auth-field input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(14,165,233,.14); }
+  .auth-field input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(37,99,235,.14); }
   .zlegend { display:flex; gap:4px; margin-left:auto; align-items:center; }
   /* 지역 트리 */
   .ghead { padding:8px 12px; font-weight:700; font-size:13px; cursor:pointer; background:#f1f5f9;
@@ -138,7 +138,7 @@
   /* 좌우 분할 지도 뷰 (경매/청약/재건축/급매 공통) */
   .mapsplit { display:flex; gap:12px; height:calc(100vh - 178px); min-height:420px; }
   .ms-list { width:46%; min-width:360px; overflow:auto; border:1px solid var(--line); border-radius:12px; background:#ffffff; }
-  .ms-map { flex:1; border-radius:12px; overflow:hidden; border:1px solid var(--line); box-shadow:inset 0 0 0 1px rgba(14,165,233,0.06); }
+  .ms-map { flex:1; border-radius:12px; overflow:hidden; border:1px solid var(--line); box-shadow:inset 0 0 0 1px rgba(37,99,235,0.06); }
   .ms-row { padding:10px 13px; border-bottom:1px solid var(--line); cursor:pointer; transition:background .1s; }
   .ms-row:hover { background:#eef2f7; }
   .ms-row.sel { background:#eff6ff; box-shadow:inset 3px 0 0 var(--accent); }
@@ -149,8 +149,8 @@
   .ms-detail .kv { display:flex; flex-wrap:wrap; gap:5px 14px; }
   .leaflet-popup-content-wrapper, .leaflet-popup-tip { background:#ffffff; color:#1e293b; box-shadow:0 4px 18px rgba(0,0,0,.5); }
   .leaflet-popup-content { font-size:12px; line-height:1.4; }
-  .mpin { width:16px; height:16px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 3px rgba(0,0,0,.25), 0 0 10px rgba(14,165,233,.5); }
-  .mpin.sel { width:22px; height:22px; box-shadow:0 0 0 4px rgba(14,165,233,.35), 0 0 16px rgba(14,165,233,.9); z-index:1000; }
+  .mpin { width:16px; height:16px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 3px rgba(0,0,0,.25), 0 0 10px rgba(37,99,235,.5); }
+  .mpin.sel { width:22px; height:22px; box-shadow:0 0 0 4px rgba(37,99,235,.35), 0 0 16px rgba(37,99,235,.9); z-index:1000; }
   .mpin.fb { opacity:.55; border-style:dashed; }
   .sec { margin-bottom:18px; }
   .sec h3 { font-size:14px; margin:0 0 8px; color:#475569; }
@@ -215,7 +215,7 @@
   <h1 style="display:flex;align-items:center;gap:9px">
     <svg width="30" height="30" viewBox="0 0 72 72" aria-label="로고">
       <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#0369a1"/><stop offset=".55" stop-color="#0ea5e9"/><stop offset="1" stop-color="#0ea5e9"/>
+        <stop offset="0" stop-color="#1e3a8a"/><stop offset=".55" stop-color="#2563eb"/><stop offset="1" stop-color="#2563eb"/>
       </linearGradient></defs>
       <rect width="72" height="72" rx="18" fill="url(#lg)"/>
       <rect x="16" y="42" width="11" height="18" rx="2" fill="#fff" fill-opacity=".92"/>
@@ -257,7 +257,7 @@
 <div id="view-signal">
   <div class="wrap">
     <div class="side">
-      <div id="ahaBox" style="display:none;padding:12px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,rgba(14,165,233,.09),rgba(14,165,233,.02))"></div>
+      <div id="ahaBox" style="display:none;padding:12px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,rgba(37,99,235,.09),rgba(37,99,235,.02))"></div>
       <div id="regimeBox" title="" style="display:none;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px;cursor:help"></div>
       <div id="scoreboard" style="display:none;padding:11px 12px;border-bottom:1px solid var(--line)"></div>
       <div class="sfilters">
@@ -627,7 +627,7 @@
     <div class="auth-brand">
       <svg width="46" height="46" viewBox="0 0 72 72" style="flex:0 0 auto">
         <defs><linearGradient id="alg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#0ea5e9"/><stop offset="1" stop-color="#0369a1"/></linearGradient></defs>
+          <stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#1e3a8a"/></linearGradient></defs>
         <rect width="72" height="72" rx="18" fill="url(#alg)"/>
         <rect x="16" y="42" width="11" height="18" rx="2" fill="#fff" fill-opacity=".92"/>
         <rect x="30" y="30" width="11" height="30" rx="2" fill="#fff" fill-opacity=".92"/>
@@ -647,7 +647,7 @@
       <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="username"></div>
     <div class="auth-field"><label>비밀번호</label>
       <input id="authPw" type="password" placeholder="6자 이상" autocomplete="current-password" onkeydown="if(event.key==='Enter')authSubmit()"></div>
-    <button class="btn" id="authBtn" onclick="authSubmit()" style="width:100%;background:var(--accent);color:#fff;font-weight:700;padding:13px;font-size:15px;margin-top:4px;box-shadow:0 6px 16px rgba(14,165,233,.25)">로그인</button>
+    <button class="btn" id="authBtn" onclick="authSubmit()" style="width:100%;background:var(--accent);color:#fff;font-weight:700;padding:13px;font-size:15px;margin-top:4px;box-shadow:0 6px 16px rgba(37,99,235,.25)">로그인</button>
     <div id="authErr" style="color:#dc2626;font-size:12.5px;margin-top:10px;min-height:16px"></div>
     <div style="text-align:center;margin-top:4px;font-size:13px;color:var(--dim)">
       <span id="authToggle" onclick="toggleAuthMode()" style="cursor:pointer;color:var(--accent);font-weight:600">계정이 없으신가요? 회원가입</span>
@@ -956,7 +956,7 @@ async function loadNews(){
 }
 // ===== 부동산 경기 사이클 국면 =====
 const _CYCLE=[
-  {k:'회복기', ic:'🌱', col:'#0ea5e9', tag:'매수 기회', 현상:['거래량이 먼저 살아남','급매 물량 소진 시작','전세가율 상승·전세난','바닥 다지기 심리']},
+  {k:'회복기', ic:'🌱', col:'#2563eb', tag:'매수 기회', 현상:['거래량이 먼저 살아남','급매 물량 소진 시작','전세가율 상승·전세난','바닥 다지기 심리']},
   {k:'상승기', ic:'🔥', col:'#16a34a', tag:'상승 추세', 현상:['호가 상승·신고가 출현','매물 잠김(집주인 관망)','추격매수·낙관 과열','상급지→하급지 확산']},
   {k:'후퇴기', ic:'⚠️', col:'#d97706', tag:'매도 신호', 현상:['거래량 급감(먼저 마름)','호가 정체·관망세','상급지부터 조정','급지역전(끝물) 경계']},
   {k:'침체기', ic:'❄️', col:'#dc2626', tag:'하락·바닥', 현상:['급매·경매 물건 증가','매수 관망·공포 심리','전세 선호(매매 기피)','다음 회복 준비 구간']},
@@ -1755,7 +1755,7 @@ function drawChart(region, m, sig){
       lineStyle:{width:1.8, color:'#e11d48'}, itemStyle:{color:'#e11d48'},
       data: mc.dates.map((dt,i)=>[dt, mc.대출금리?.[i]]) }); }
   else if(sec==='volume' && _lastVol?.counts){ series.push({ name:'거래량(건)', type:'bar', yAxisIndex:1, z:-1, barWidth:'55%',
-      itemStyle:{color:'rgba(14,165,233,0.30)'}, data: _lastVol.dates.map((dt,i)=>[dt, _lastVol.counts[i]]) }); }
+      itemStyle:{color:'rgba(37,99,235,0.30)'}, data: _lastVol.dates.map((dt,i)=>[dt, _lastVol.counts[i]]) }); }
   const SEC = {change:{name:'증감%', color:'#059669', min:undefined},
                rate:{name:'금리%', color:'#e11d48', min:0},
                volume:{name:'거래량', color:'var(--accent)', min:0}}[sec];
