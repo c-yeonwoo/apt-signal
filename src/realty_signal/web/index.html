@@ -361,6 +361,12 @@
       입지점수 = 업무지구(강남·광화문·여의도) 대중교통 + 학원밀도 + 주거환경. <b>같은 급지인데 입지 대비 싸면 저평가</b>.
       <i>※ 시군구 단위 숏리스트 — 단지별 신축/구축 차이는 반영 안 됨.</i></p>
   </div>
+  <div style="font-size:12px;color:var(--dim);margin:2px 2px 4px">🗺️ 수도권 급지 지도 — 색이 진할수록(금색) 상급지. 구를 클릭하면 아래 해설로 이동합니다.</div>
+  <div style="position:relative;margin-bottom:12px">
+    <div id="uvMap" style="height:440px;border:1px solid var(--line);border-radius:var(--r-md);background:#f1f5f9"></div>
+    <div id="uvMapLegend" style="position:absolute;right:10px;bottom:12px;z-index:500;background:var(--panel);
+         border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.7;box-shadow:var(--shadow)"></div>
+  </div>
   <div id="uvchart" style="height:340px"></div>
   <div id="uvHaesol" style="margin:6px 2px 0;padding:10px 14px;background:var(--panel);
        border:1px solid var(--line);border-radius:10px;font-size:14px;color:#334155;min-height:20px"></div>
@@ -1533,8 +1539,41 @@ async function loadUndervalued(){
     _uvGradeStats[g]={n:arr.length, pMin:ps[0], pMax:ps[ps.length-1], ipjiMid: is.length?Math.round(is[Math.floor(is.length/2)]):null};
   });
   renderUvGroups();
+  drawUvMap();
   drawUvScatter(d.listings);
   showUvHaesol([..._uvList].sort((a,b)=>b['저평가도']-a['저평가도'])[0].region);
+}
+// 수도권 급지 지도(choropleth) — 시군구 경계를 급지 색으로 채움
+let uvMap=null, uvGeoLayer=null, _uvGeo=null;
+async function drawUvMap(){
+  const el=document.getElementById('uvMap'); if(!el || typeof L==='undefined') return;
+  if(!uvMap){
+    uvMap=L.map(el,{attributionControl:false, scrollWheelZoom:false}).setView([37.45,127.0],9);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:16}).addTo(uvMap);
+  }
+  if(!_uvGeo){ try{ _uvGeo=await (await fetch('/sudo_gu.geojson')).json(); }catch(e){ return; } }
+  const G=(typeof _REGION_GRADE!=='undefined')?_REGION_GRADE:{};
+  const norm=s=>(s||'').replace(/\s/g,'');
+  const lut={};
+  (allSignals||[]).forEach(s=>{ if(s['급지']) lut[norm(s.region)]={g:s['급지'],region:s.region}; });
+  (_uvList||[]).forEach(r=>{ lut[norm(r.region)]={g:r['급지'],price:r.price,uv:r['저평가도'],region:r.region}; });
+  if(uvGeoLayer) uvGeoLayer.remove();
+  uvGeoLayer=L.geoJSON(_uvGeo,{
+    style:f=>{ const m=lut[norm(f.properties.name)], gd=m&&G[m.g];
+      return {color:'#ffffff', weight:1, fillColor: gd?gd.col:'#e2e8f0', fillOpacity: gd?0.62:0.22}; },
+    onEachFeature:(f,layer)=>{ const m=lut[norm(f.properties.name)], gd=m&&G[m.g];
+      layer.bindTooltip(`<b>${f.properties.name}</b>`
+        + (gd?` · <span style="color:${gd.col};font-weight:700">${gd.label}</span>`:' · 데이터 없음')
+        + (m&&m.price?`<br>평단 ${won(m.price)}/평${m.uv!=null?` · 저평가 ${m.uv>0?'+':''}${m.uv}%`:''}`:''), {sticky:true});
+      layer.on('click',()=>{ if(m&&m.region&&window._uv&&window._uv[m.region]) showUvHaesol(m.region); });
+      layer.on('mouseover',()=>layer.setStyle({weight:2.5,color:'#334155'}));
+      layer.on('mouseout',()=>layer.setStyle({weight:1,color:'#ffffff'}));
+    }
+  }).addTo(uvMap);
+  const lg=document.getElementById('uvMapLegend');
+  if(lg) lg.innerHTML='<b>급지</b><br>'+['A','B','C','D'].map(g=>{const gd=G[g];
+    return `<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:12px;height:12px;background:${gd.col};display:inline-block;border-radius:2px"></span>${gd.label}</span>`;}).join('<br>');
+  setTimeout(()=>uvMap.invalidateSize(),90);
 }
 let _uvGradeStats={};
 // 지역 급지별 그룹 → 각 급지 안에서 '입지 대비 저평가' 순 추천
@@ -1873,7 +1912,8 @@ function drawCycleMini(region, z0, last){
       markLine:{ silent:true, symbol:'none', data:[{yAxis:0}], label:{show:false}, lineStyle:{type:'dashed', opacity:.22, color:'var(--dim)'} },
       markArea:{ silent:true, data: bands.map(b=>[
         {xAxis:b.start, itemStyle:{color:pc[b.phase]||'rgba(148,163,184,.12)'},
-         label:{show:true, position:'insideTop', fontSize:9, color:'var(--dim)', formatter:b.phase.replace('기','')}},
+         label:{show:true, position:'insideTop', distance:2, fontSize:10, fontWeight:700, color:'#1e293b',
+           backgroundColor:'rgba(255,255,255,.82)', padding:[1,4], borderRadius:3, formatter:b.phase.replace('기','')}},
         {xAxis:b.end}]) } }] }, true);
 }
 function redrawChart(){ if(_lastM && selected) drawChart(selected, _lastM, _lastSig); }
