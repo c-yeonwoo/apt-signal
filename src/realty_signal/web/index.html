@@ -253,6 +253,7 @@
   <button class="subtab chip" data-sub="quicksale" onclick="switchTab('quicksale')">급매</button>
   <button class="subtab chip" data-sub="presale" onclick="switchTab('presale')">청약</button>
   <button class="subtab chip" data-sub="redev" onclick="switchTab('redev')">재건축</button>
+  <span id="listingFocus" style="margin-left:auto;font-size:12px;color:var(--dim);display:none"></span>
 </div>
 
 <!-- 시그널 탭 -->
@@ -280,6 +281,7 @@
         <button id="sideToggle" onclick="toggleSide()" title="목록 접기/펼치기" style="font-size:15px">◀</button>
         <span id="sigbadge" style="font-size:18px;font-weight:700"></span>
         <span id="sigsub" style="color:var(--dim);font-size:12.5px"></span>
+        <button class="chip" id="toListingsBtn" onclick="focusListings(selected)" title="이 지역 매물(경매·급매·청약)만 좁혀 보기" style="white-space:nowrap;border-color:var(--accent);color:var(--accent)">이 지역 매물 ›</button>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <span style="font-size:11px;color:var(--dim)">오버레이</span>
           <button class="chip" id="histBtn" onclick="toggleHist()" style="white-space:nowrap">📅 지난 시그널</button>
@@ -806,6 +808,21 @@ function regionGradeBadge(g, pyeong){
 
 const _LISTING=['auction','quicksale','presale','redev'];   // 매물 하위탭
 let _listingSub='auction';
+let _focusRegion=null;   // 관심지역 → 매물 좁히기(옵션, 강제 X)
+function focusListings(region){
+  _focusRegion = region || null;
+  if(_focusRegion){ const s=document.getElementById('rdRegion'); if(s && [...s.options].some(o=>o.value===_focusRegion)) s.value=_focusRegion; }
+  switchTab('quicksale');   // 급매를 기본 진입으로
+}
+function clearListingFocus(){ _focusRegion=null; renderListingFocus(); (_LISTLOAD[_listingSub]||(()=>{}))(); }
+function renderListingFocus(){
+  const el=document.getElementById('listingFocus'); if(!el) return;
+  el.innerHTML = _focusRegion
+    ? `📍 <b>${_focusRegion}</b> 매물만 <span onclick="clearListingFocus()" style="cursor:pointer;color:var(--accent);margin-left:6px">전체 보기 ✕</span>`
+    : '';
+  el.style.display = _focusRegion ? '' : 'none';
+}
+function inFocus(region){ return !_focusRegion || (region||'').includes(_focusRegion) || _focusRegion.includes(region||'§'); }
 const _LISTLOAD={auction:()=>loadAuction(), quicksale:()=>loadQuicksale(), presale:()=>loadPresale(), redev:()=>loadRedev()};
 function switchTab(t){
   if(_LISTING.includes(t)){ _listingSub=t; t='listings'; }   // 4탭 → 매물 그룹으로 라우팅
@@ -818,6 +835,7 @@ function switchTab(t){
     document.getElementById('view-'+v).style.display = (v===t || (listing && v===_listingSub))?'':'none');
   if(listing){
     document.querySelectorAll('#listingSubnav .subtab').forEach(b=>b.classList.toggle('on', b.dataset.sub===_listingSub));
+    renderListingFocus();
     (_LISTLOAD[_listingSub]||(()=>{}))();
   }
   if(t==='signal'){ chart.resize(); renderScoreboard(); renderAha(); }
@@ -1134,7 +1152,7 @@ async function refreshQuicksale(){
 const _eok = n => (n==null||n<=0)?'–':(n/10000).toFixed(1)+'억';
 function renderQuicksale(){
   const minGap = +document.getElementById('qsGap').value || 0;
-  const rows = _qsList.filter(m=> minGap===0 || (m['급매갭']!=null && m['급매갭']<=minGap));
+  const rows = _qsList.filter(m=> (minGap===0 || (m['급매갭']!=null && m['급매갭']<=minGap)) && inFocus(m['지역']||''));
   document.getElementById('qsEmpty').textContent = rows.length?'':'조건에 맞는 급매가 없습니다. (스캔 먼저 / 갭 기준 완화)';
   mapSplit('qsList','qsMap',rows,{
     summary:m=>({nm:`${m['단지명']||'–'} ${m['시그널']?badge(m['시그널']):''}`,
@@ -1445,7 +1463,8 @@ function renderPresale(){
   const openOnly = document.getElementById('psOpen').checked;
   const rows = _presaleList
     .filter(r => !buyOnly || ['STRONG_BUY','BUY'].includes(r['시그널']))
-    .filter(r => !openOnly || ['접수중','접수예정'].includes(r['상태']));
+    .filter(r => !openOnly || ['접수중','접수예정'].includes(r['상태']))
+    .filter(r => inFocus(r['지역']||''));
   document.getElementById('psEmpty').textContent = rows.length ? '' : '해당 조건의 청약 단지가 없습니다.';
   mapSplit('psList','psMap',rows,{
     summary:r=>({nm:`${r['단지명']||'–'} ${r['당해']?'<span class="pill" style="background:var(--accent);color:#fff;border-color:var(--accent)">당해</span>':''} ${r['시그널']?badge(r['시그널']):''} ${r['정비사업']?'<span class="pill">정비</span>':''}`,
@@ -2215,6 +2234,7 @@ function prefillRegion(r){ switchTab('auction'); openAdd(); document.getElementB
 function daysTo(d){ if(!d) return null; return Math.ceil((new Date(d) - new Date())/86400000); }
 
 function renderAuction(rows){
+  rows = rows.filter(r=>inFocus(r['region']||''));
   const sz = document.getElementById('fSize').value, ag = document.getElementById('fAge').value;
   if(sz) rows = rows.filter(r=>{const a=r['전용면적']||0; return sz==='s'?a<=60:sz==='m'?(a>60&&a<=85):a>85;});
   if(ag) rows = rows.filter(r=>{ if(!r['건축년도']) return false; const y=2026-r['건축년도'];
