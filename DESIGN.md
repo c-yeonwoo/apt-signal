@@ -5,13 +5,13 @@
 
 ## 1. 브랜드
 - **아이덴티티**: "근거가 증명되는 매수 타이밍" — 신뢰·데이터·차분함.
-- **브랜드 컬러 = 오션블루 `#0ea5e9`** (`--accent`). 로고(막대+상승선 차트)와 통일. ⚠️ 로열블루 `#2563eb`·청록은 폐기.
-- **로고 그라디언트**: `#0369a1 → #0ea5e9`. 워드마크 `Signal APT`. 부제 "데이터로 찾는 아파트 매매 타이밍".
+- **브랜드 컬러 = 로열블루 `#2563eb`** (`--accent`). 로고(막대+상승선 차트)와 통일. ⚠️ 오션블루 `#0ea5e9`·청록은 폐기.
+- **로고 그라디언트**: `#1e3a8a → #2563eb`. 워드마크 `Signal APT`. 부제 "데이터로 찾는 아파트 매매 타이밍".
 
 ## 2. 토큰 (`:root`, 단일 소스)
 ```
 표면   --bg #f8fafc · --panel #fff · --line #e2e8f0 · --txt #1e293b · --dim #64748b
-브랜드 --accent #0ea5e9 · --accent-ink #fff · --accent-weak rgba(14,165,233,.10) · --ring rgba(14,165,233,.22)
+브랜드 --accent #2563eb · --accent-ink #fff · --accent-weak rgba(37,99,235,.10) · --ring rgba(37,99,235,.22)
 시그널 --sig-strong #22c55e · --sig-buy #16a34a · --sig-watch #d97706 · --sig-neutral #94a3b8 · --sig-sell #dc2626
 의미   --quick #ea580c(급매) · --success #16a34a · --danger #dc2626 · --warn #d97706
 형태   --r-sm 8 · --r-md 12 · --r-lg 16 · --shadow 0 8px 24px rgba(2,32,71,.09)
