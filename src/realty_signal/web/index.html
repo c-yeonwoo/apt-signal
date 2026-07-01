@@ -235,13 +235,16 @@
     <button class="tab" data-tab="conclusion" onclick="switchTab('conclusion')">✨ AI 리포트</button>
   </div>
   <div class="right">
-    <button class="chip" id="cmpChip" onclick="openCompare()" style="font-size:12px;display:none;background:var(--accent);color:#fff;border-color:var(--accent)" title="담은 단지 비교">🆚 비교 0</button>
-    <button class="chip" onclick="openComplexFind()" style="font-size:12px" title="단지명으로 상세 검색">🔍 단지찾기</button>
-    <button class="chip" onclick="switchTab('glossary')" style="font-size:12px" title="부동산 용어·개념 학습">📖 용어</button>
-    <button class="chip" onclick="openBoard()" style="font-size:12px">★ 내 보드</button>
-    <button class="chip" id="alertBtn" onclick="openAlerts()" style="font-size:13px;position:relative" title="즐겨찾기 지역 시그널 변동 알림">🔔<span id="alertBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;line-height:16px;border-radius:8px;padding:0 3px"></span></button>
+    <!-- 도구: 탐색·비교·학습 -->
+    <button class="chip" onclick="openComplexFind()" style="font-size:12px" title="단지명으로 상세 검색">단지찾기</button>
+    <button class="chip" id="cmpChip" onclick="openCompare()" style="font-size:12px;display:none;background:var(--accent);color:#fff;border-color:var(--accent)" title="담은 단지 비교">비교 0</button>
+    <button class="chip" onclick="switchTab('glossary')" style="font-size:12px" title="부동산 용어·개념 학습">용어</button>
+    <span aria-hidden="true" style="width:1px;height:18px;background:var(--line);margin:0 4px;flex:0 0 auto"></span>
+    <!-- 개인: 보드·알림·계정 -->
+    <button class="chip" onclick="openBoard()" style="font-size:12px" title="즐겨찾기 지역 보드">★ 내 보드</button>
+    <button class="chip" id="alertBtn" onclick="openAlerts()" style="font-size:14px;line-height:1;position:relative" title="즐겨찾기 지역 시그널 변동 알림">🔔<span id="alertBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;line-height:16px;border-radius:8px;padding:0 3px"></span></button>
     <span class="date" id="date" title="자동 갱신(주간 cron)"></span>
-    <button class="chip" id="myPageBtn" onclick="switchTab('mypage')" style="font-size:13px;display:flex;align-items:center;gap:6px">👤 <span id="myPageLabel">마이페이지</span></button>
+    <button class="chip" id="myPageBtn" onclick="switchTab('mypage')" style="font-size:12px"><span id="myPageLabel">마이페이지</span></button>
   </div>
 </header>
 
@@ -1947,7 +1950,7 @@ async function cxFind(){
 let _cxCur={name:'',region:''};
 function cmpList(){ try{ return JSON.parse(localStorage.getItem('_cmp')||'[]'); }catch(e){ return []; } }
 function cmpSave(a){ localStorage.setItem('_cmp',JSON.stringify(a.slice(0,4))); updateCmpChip(); }
-function updateCmpChip(){ const b=document.getElementById('cmpChip'); if(!b) return; const n=cmpList().length; b.style.display=n?'':'none'; b.textContent=`🆚 비교 ${n}`; }
+function updateCmpChip(){ const b=document.getElementById('cmpChip'); if(!b) return; const n=cmpList().length; b.style.display=n?'':'none'; b.textContent=`비교 ${n}`; }
 function addToCompare(name,region){
   const a=cmpList();
   if(a.find(x=>x.name===name&&x.region===region)){ toast('이미 비교목록에 있습니다'); return; }
