@@ -877,6 +877,15 @@ def cycle(region: str = "서울"):
     return cyc.current_phase(_kb(), region) or {"phase": None}
 
 
+@app.get("/api/cycle/history")
+def cycle_history(region: str = "서울"):
+    """지역 시기별 경기 국면 타임라인 — 시그널 차트 오버레이용 밴드."""
+    from realty_signal.signals import cycle as cyc
+    kb = _kb()
+    r = region if not kb.series(region, "sale_change").dropna().empty else "서울"
+    return {"region": r, "bands": cyc.cycle_history(kb, r)}
+
+
 @app.get("/api/complex-search")
 def complex_search(q: str):
     """단지명 통합검색 — 카카오 로컬로 위치 해석 → {단지명, region} 후보. deep-dive 진입용."""

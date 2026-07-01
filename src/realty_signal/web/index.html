@@ -231,7 +231,6 @@
     <button class="tab" data-tab="undervalued" onclick="switchTab('undervalued')">저평가</button>
     <button class="tab" data-tab="listings" onclick="switchTab('listings')">매물</button>
     <button class="tab" data-tab="news" onclick="switchTab('news')">뉴스</button>
-    <button class="tab" data-tab="cycle" onclick="switchTab('cycle')">사이클</button>
     <button class="tab" data-tab="conclusion" onclick="switchTab('conclusion')">✨ AI 리포트</button>
   </div>
   <div class="right">
@@ -289,6 +288,8 @@
               <option value="volume">거래량</option>
             </select></label>
           <button class="chip" id="histBtn" onclick="toggleHist()" style="white-space:nowrap">📅 지난 시그널</button>
+          <button class="chip" id="cycleBtn" onclick="toggleCycleOverlay()" style="white-space:nowrap" title="이 지역이 시기별로 어떤 경기 국면이었는지">🌀 경기국면</button>
+          <button class="chip" onclick="openCycleGuide()" style="white-space:nowrap;padding-left:9px;padding-right:9px" title="경기 국면 가이드(4국면 설명·자산격차)">ⓘ</button>
           <button class="chip" id="haesolBtn" onclick="toggleHaesol()" style="white-space:nowrap">💬 해설</button>
           <button class="chip" id="zoneBtn" onclick="toggleZoneInfo(event)" style="white-space:nowrap">🎨 전세수급 구간</button>
           <button class="chip" onclick="openSources()" title="지표 데이터 출처·갱신주기" style="white-space:nowrap">ⓘ 출처</button>
@@ -491,20 +492,21 @@
   </div>
 </div>
 
-<div id="view-cycle" style="display:none">
-  <div style="max-width:960px;margin:0 auto;padding:20px 16px 40px">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:4px">
-      <h2 style="margin:0">🌀 부동산 경기 사이클</h2>
+<dialog id="cycleGuideDlg" style="width:920px;max-width:96vw;border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--txt)">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+    <h3 style="margin:0;font-size:20px">🌀 부동산 경기 사이클 가이드</h3>
+    <div style="display:flex;gap:8px;align-items:center">
       <label style="font-size:13px;color:var(--dim)">권역 <select id="cycleRegion" class="ctrl" onchange="loadCycle()" style="padding:6px 9px"><option value="서울">서울</option><option value="경기">경기</option><option value="인천">인천</option></select></label>
+      <span class="btn" style="padding:2px 11px" onclick="document.getElementById('cycleGuideDlg').close()">✕</span>
     </div>
-    <p style="color:var(--dim);font-size:13px;margin:0 0 16px">벌집순환모형 4국면 — <b>가격 방향 × 매수심리 방향</b>으로 현재 위치를 추정합니다. (심리·거래량이 가격을 선행)</p>
-    <div id="cycleGraph" style="margin-bottom:18px"></div>
-    <div id="cycleNow"></div>
-    <div id="cyclePhases" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px"></div>
-    <div id="cycleInsight" style="margin-top:20px"></div>
-    <p style="color:var(--dim);font-size:11px;margin-top:14px">※ KB 광역 주간 시리즈 기반 추정. 지역·단지별 국면은 다를 수 있으며 참고용입니다.</p>
   </div>
-</div>
+  <p style="color:var(--dim);font-size:13px;margin:0 0 16px">벌집순환모형 4국면 — <b>가격 방향 × 매수심리 방향</b>으로 현재 위치를 추정합니다. (시그널 차트에서 <b>🌀 경기국면</b> 켜면 지역별 시기별 국면을 볼 수 있어요.)</p>
+  <div id="cycleGraph" style="margin-bottom:18px"></div>
+  <div id="cycleNow"></div>
+  <div id="cyclePhases" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px"></div>
+  <div id="cycleInsight" style="margin-top:20px"></div>
+  <p style="color:var(--dim);font-size:11px;margin-top:14px">※ KB 광역 주간 시리즈 기반 추정. 지역·단지별 국면은 다를 수 있으며 참고용입니다.</p>
+</dialog>
 
 <div id="view-conclusion" style="display:none">
   <h2 style="margin:0 0 4px">✨ AI 개인화 리포트</h2>
@@ -817,7 +819,7 @@ function switchTab(t){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on', b.dataset.tab===t));
   const mpBtn=document.getElementById('myPageBtn'); if(mpBtn) mpBtn.classList.toggle('on', t==='mypage');
   const sub=document.getElementById('listingSubnav'); if(sub) sub.style.display = listing?'flex':'none';
-  ['signal','auction','undervalued','presale','conclusion','quicksale','redev','mypage','cycle','news','glossary'].forEach(v=>
+  ['signal','auction','undervalued','presale','conclusion','quicksale','redev','mypage','news','glossary'].forEach(v=>
     document.getElementById('view-'+v).style.display = (v===t || (listing && v===_listingSub))?'':'none');
   if(listing){
     document.querySelectorAll('#listingSubnav .subtab').forEach(b=>b.classList.toggle('on', b.dataset.sub===_listingSub));
@@ -827,7 +829,6 @@ function switchTab(t){
   if(t==='undervalued') loadUndervalued();
   if(t==='conclusion') loadConclusion();
   if(t==='mypage') fillMyPage();
-  if(t==='cycle') loadCycle();
   if(t==='news') loadNews();
   if(t==='glossary') renderGlossary();
 }
@@ -1776,10 +1777,20 @@ function drawChart(region, m, sig){
         {xAxis:h.end}]) }});
   }
 
+  // 경기 국면 오버레이 — 시기별 국면(회복/상승/후퇴/침체) 색 밴드
+  if(_showCycle && _cycleCache[region]?.length){
+    const pc={회복기:'rgba(2,132,199,0.14)', 상승기:'rgba(22,163,74,0.15)', 후퇴기:'rgba(217,119,6,0.15)', 침체기:'rgba(220,38,38,0.13)'};
+    series.push({ name:'경기국면', type:'line', data:[], yAxisIndex:0, silent:true,
+      markArea:{ data: _cycleCache[region].map(b=>[
+        {xAxis:b.start, itemStyle:{color: pc[b.phase]||'rgba(148,163,184,.1)'},
+         label:{show:true, position:'insideBottom', fontSize:9, color:'var(--dim)', formatter:b.phase.replace('기','')}},
+        {xAxis:b.end}]) }});
+  }
+
   const last = meta.last_date, start = new Date(last); start.setFullYear(start.getFullYear()-3);
-  // 지난 시그널 ON 이면 과거 구간이 보이도록 전체 기간으로, 아니면 최근 3년
+  // 지난 시그널·경기국면 ON 이면 과거가 보이도록 전체 기간으로, 아니면 최근 3년
   const allDates = (m.jeonse_supply || m.price_index || m.sale_change || {}).dates || [];
-  const z0 = (_showHist && allDates.length) ? allDates[0] : start.toISOString().slice(0,10);
+  const z0 = ((_showHist||_showCycle) && allDates.length) ? allDates[0] : start.toISOString().slice(0,10);
   chart.setOption({ tooltip:{trigger:'axis'},
     legend:{type:'scroll', top:6, left:46, right:70, textStyle:{fontSize:11}},
     grid:{left:48, right:62, top:52, bottom:64}, xAxis:{type:'time'},
@@ -1822,6 +1833,19 @@ async function loadData(){
   selectRegion(keep ? selected : (allSignals.find(r=>active.has(r.signal))||allSignals[0]).region);
 }
 let _showHist=false, _histCache={}, _lastM=null, _lastSig=null, _lastVol=null;
+// 경기 국면 오버레이 (지역별 시기별 국면 밴드)
+let _showCycle=false, _cycleCache={};
+async function toggleCycleOverlay(){
+  _showCycle=!_showCycle;
+  document.getElementById('cycleBtn').classList.toggle('on', _showCycle);
+  if(_showCycle && selected && !_cycleCache[selected]){
+    try{ _cycleCache[selected]=(await (await fetch('/api/cycle/history?region='+encodeURIComponent(selected))).json()).bands||[]; }
+    catch(e){ _cycleCache[selected]=[]; }
+  }
+  if(_showCycle && !(_cycleCache[selected]||[]).length) toast('이 지역은 국면 데이터가 부족합니다.');
+  if(_lastM) drawChart(selected, _lastM, _lastSig);
+}
+function openCycleGuide(){ loadCycle(); document.getElementById('cycleGuideDlg').showModal(); }
 async function toggleHist(){
   _showHist=!_showHist;
   document.getElementById('histBtn').classList.toggle('on', _showHist);
