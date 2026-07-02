@@ -1254,7 +1254,7 @@ async function loadRedevCands(){
   loadRedevStages();   // 단계 현황은 빠르므로(캐시) 먼저 독립 로드
   st.textContent='분석 중… (국토부+건축물대장 조회, 수십초)';
   document.getElementById('rdCandList').innerHTML='';
-  const d=await (await fetch('/api/redevelopment/candidates/'+encodeURIComponent(region))).json();
+  const d=await (await fetch('/api/redev/candidates/'+encodeURIComponent(region))).json();
   st.innerHTML=`${region} ${d['시그널']?badge(d['시그널']):''} · 구축 ${d.candidates.length}개 단지`;
   document.getElementById('rdCandEmpty').textContent = d.candidates.length?'':'구축 단지 데이터가 없습니다.';
   const gcol=c=>c['잠재력']>=65?'#16a34a':c['잠재력']>=50?'#d97706':'#94a3b8';
@@ -1275,7 +1275,7 @@ async function loadRedevStages(){
   const region=document.getElementById('rdRegion').value;
   const dist=document.getElementById('rdStageDist'), dur=document.getElementById('rdStageDur');
   dist.innerHTML='<span style="color:var(--dim);font-size:12px">불러오는 중…</span>'; dur.innerHTML='';
-  const d=await (await fetch('/api/redevelopment/stages'+(region?'?region='+encodeURIComponent(region):''))).json();
+  const d=await (await fetch('/api/redev/stages'+(region?'?region='+encodeURIComponent(region):''))).json();
   const late=['관리처분인가','이주','철거신고','착공신고','일반분양승인','준공인가','이전고시','조합해산'];
   dist.innerHTML=`<span style="color:var(--dim);font-size:12px;align-self:center">${d.region} ${d['사업수']}개 사업 →</span>`+
     (d['단계분포']||[]).map(s=>{const c=late.includes(s['단계'])?'#16a34a':'var(--accent)';
@@ -1286,7 +1286,7 @@ async function loadRedevStages(){
 }
 function calcRedevValue(){
   const q=`current_price=${+rv_cur.value}&pyeong=${+rv_py.value}&presale_pyeong_price=${+rv_ps.value}&contribution=${+rv_con.value}&hold_months=${+rv_mon.value}`;
-  fetch('/api/redevelopment/value-calc?'+q).then(r=>r.json()).then(d=>{
+  fetch('/api/redev/value-calc?'+q).then(r=>r.json()).then(d=>{
     const eok=n=>n==null?'–':(n/10000).toFixed(2)+'억';
     const col=d.ROI>=0?'#16a34a':'#dc2626';
     document.getElementById('rvResult').innerHTML=
@@ -1304,7 +1304,7 @@ async function loadRedevZones(){
   const st=document.getElementById('rdZoneStatus'); const tb=document.getElementById('rdZoneRows');
   st.textContent='불러오는 중…'; tb.innerHTML='';
   const params=new URLSearchParams(); if(type)params.set('type',type); if(q)params.set('q',q);
-  const d=await (await fetch('/api/redevelopment/zones?'+params)).json();
+  const d=await (await fetch('/api/redev/zones?'+params)).json();
   st.innerHTML=`총 ${d.total}건 · `+Object.entries(d.by_type||{}).map(([k,v])=>`${k} ${v}`).join(' / ');
   const tcol={'재건축':'#16a34a','재개발':'var(--accent)','도시환경':'#7c3aed','주거환경':'#ea580c'};
   d.zones.forEach(z=>{
