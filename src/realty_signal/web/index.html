@@ -404,6 +404,7 @@
   <div class="sec">
     <h3>관심 매물 — 우선순위순</h3>
     <p style="color:var(--dim);font-size:12px;margin:-4px 0 8px">단지 클릭 시 상세(비용·수익·급지) 드릴다운 + 지도 핀 포커스. 상세의 '대출계산기'로 민감도 표.</p>
+    <div id="aucMtFilter" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px"></div>
     <div class="mapsplit">
       <div class="ms-list" id="auctionList"></div>
       <div class="ms-map" id="auctionMap"></div>
@@ -445,9 +446,9 @@
       <button class="chip" id="gajeomBtn" onclick="openGajeom()" style="margin-left:8px;display:none;background:var(--accent);color:#fff;border-color:var(--accent)">내 청약 가점 <b id="gajeomBadge">–</b></button></h3>
     <p style="color:var(--dim);font-size:12px;margin:-2px 0 8px">
       최근~예정 청약. 접수중·임박(D-day) → BUY+ 순. 단지 클릭 시 평형별 분양가·특별공급·시세대비 메리트.
-      <label style="margin-left:10px"><input type="checkbox" id="psBuyOnly" onchange="renderPresale()"> BUY+ 지역만</label>
       <label style="margin-left:8px"><input type="checkbox" id="psOpen" onchange="renderPresale()" checked> 접수중·예정만</label>
     </p>
+    <div id="psMtFilter" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:-2px 0 10px"></div>
     <div id="psTeukgong" style="margin:-2px 0 10px;font-size:13px"></div>
     <div class="mapsplit">
       <div class="ms-list" id="psList"></div>
@@ -467,6 +468,7 @@
     <label>최소 급매갭 <select id="qsGap" onchange="renderQuicksale()" class="ctrl">
       <option value="0">전체</option><option value="-3">-3% 이하</option><option value="-5" selected>-5% 이하</option><option value="-8">-8% 이하</option><option value="-10">-10% 이하</option></select></label>
     <span id="qsStatus" style="color:var(--dim);font-size:12px"></span>
+    <span id="qsMtFilter" style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap"></span>
   </div>
   <div class="mapsplit">
     <div class="ms-list" id="qsList"></div>
@@ -961,6 +963,32 @@ function regionGradeBadge(g, pyeong){
   return `<span title="시군구 평단가 분위(A~D)" style="color:${gd.col};font-weight:700">${gd.label}</span>${p}`;
 }
 
+// ===== 매물 공통 카드 요소(경매·급매·청약 표준화) =====
+function _mtGradeLabel(region){ const s=(allSignals||[]).find(x=>x.region===region);
+  return (s&&s['급지']&&_REGION_GRADE[s['급지']]) ? _REGION_GRADE[s['급지']] : null; }
+function _mtGradeTag(region){ const gd=_mtGradeLabel(region);
+  return gd?`<span style="color:${gd.col};font-weight:700">${gd.label}</span>`:''; }
+function _mtMetric(label, valHtml){   // 우측 핵심지표 — 라벨+값 통일
+  return `<div style="text-align:right;line-height:1.15"><div style="font-size:9px;color:var(--dim)">${label}</div>${valHtml}</div>`; }
+// 공통 필터 상태(급지·BUY+) — 매물 3탭 공통
+let _mtGradeSet=new Set(['A','B','C','D']), _mtBuyOnly=false;
+function _mtRegionGrade(region){ const s=(allSignals||[]).find(x=>x.region===region); return s?s['급지']:null; }
+function _mtPass(region, signal){
+  const g=_mtRegionGrade(region);
+  if(g && !_mtGradeSet.has(g)) return false;
+  if(_mtBuyOnly && !['STRONG_BUY','BUY'].includes(signal)) return false;
+  return true;
+}
+function renderMtFilter(hostId, rerender){
+  const el=document.getElementById(hostId); if(!el) return;
+  const chip=(code,lbl)=>`<span class="chip${_mtGradeSet.has(code)?' on':''}" style="font-size:11px" data-g="${code}">${lbl}</span>`;
+  el.innerHTML=`<label style="font-size:12px;color:var(--dim);display:inline-flex;align-items:center;gap:5px"><input type="checkbox" ${_mtBuyOnly?'checked':''} class="mt-buy"> 매수신호만</label>`
+    + `<span style="font-size:11px;color:var(--dim);margin-left:6px">급지</span>`
+    + [['A','상'],['B','중상'],['C','중하'],['D','하']].map(([c,l])=>chip(c,l)).join('');
+  el.querySelector('.mt-buy').onchange=e=>{ _mtBuyOnly=e.target.checked; rerender(); };
+  el.querySelectorAll('[data-g]').forEach(c=>c.onclick=()=>{ const g=c.dataset.g;
+    _mtGradeSet.has(g)?_mtGradeSet.delete(g):_mtGradeSet.add(g); rerender(); });
+}
 const _LISTING=['auction','quicksale','presale','redev'];   // 매물 하위탭
 let _listingSub='auction';
 let _focusRegion=null;   // 관심지역 → 매물 좁히기(옵션, 강제 X)
@@ -1317,13 +1345,14 @@ async function refreshQuicksale(){
 }
 const _eok = n => (n==null||n<=0)?'–':(n/10000).toFixed(1)+'억';
 function renderQuicksale(){
+  renderMtFilter('qsMtFilter', renderQuicksale);
   const minGap = +document.getElementById('qsGap').value || 0;
-  const rows = _qsList.filter(m=> (minGap===0 || (m['급매갭']!=null && m['급매갭']<=minGap)) && inFocus(m['지역']||''));
-  document.getElementById('qsEmpty').textContent = rows.length?'':'조건에 맞는 급매가 없습니다. (스캔 먼저 / 갭 기준 완화)';
+  const rows = _qsList.filter(m=> (minGap===0 || (m['급매갭']!=null && m['급매갭']<=minGap)) && inFocus(m['지역']||'') && _mtPass(m['지역'], m['시그널']));
+  document.getElementById('qsEmpty').textContent = rows.length?'':'조건에 맞는 급매가 없습니다. (스캔 먼저 / 갭·급지·신호 기준 완화)';
   mapSplit('qsList','qsMap',rows,{
     summary:m=>({nm:`${m['단지명']||'–'} ${m['시그널']?badge(m['시그널']):''}`,
-      right:`<b style="color:${m['급매갭']<=-8?'#ef4444':'#ea580c'}">${m['급매갭']}%</b>`,
-      sub:`${m['지역']||''} · ${m['평형']||''}평 · 호가 ${_eok(m['호가'])}`}),
+      right:_mtMetric('급매갭', `<b style="color:${m['급매갭']<=-8?'#ef4444':'#ea580c'}">${m['급매갭']}%</b>`),
+      sub:`${m['지역']||''}${_mtGradeTag(m['지역'])?' · '+_mtGradeTag(m['지역']):''} · ${m['평형']||''}평 · 호가 ${_eok(m['호가'])}`}),
     detail:m=>`<div class="kv"><span>호가 <b>${_eok(m['호가'])}</b></span><span>중위시세 ${_eok(m['중위시세'])}</span>
       <span>${m['층']??'–'}층 ${m['방향']||''}</span><span>세대 ${m['세대수']?m['세대수'].toLocaleString():'–'}</span>
       <span>연식 ${m['연식']||'–'}</span></div>${loanBtn(m['호가'],m['단지명'])}${cxBtn(m['단지명'],m['지역'])}`,
@@ -1682,17 +1711,16 @@ function psStatusBadge(st, dday){
 }
 function renderPresale(){
   renderTeukgong();
-  const buyOnly = document.getElementById('psBuyOnly').checked;
+  renderMtFilter('psMtFilter', renderPresale);
   const openOnly = document.getElementById('psOpen').checked;
   const rows = _presaleList
-    .filter(r => !buyOnly || ['STRONG_BUY','BUY'].includes(r['시그널']))
     .filter(r => !openOnly || ['접수중','접수예정'].includes(r['상태']))
-    .filter(r => inFocus(r['지역']||''));
+    .filter(r => inFocus(r['지역']||'') && _mtPass(r['지역'], r['시그널']));
   document.getElementById('psEmpty').textContent = rows.length ? '' : '해당 조건의 청약 단지가 없습니다.';
   mapSplit('psList','psMap',rows,{
     summary:r=>({nm:`${r['단지명']||'–'} ${r['당해']?'<span class="pill" style="background:var(--accent);color:#fff;border-color:var(--accent)">당해</span>':''} ${r['시그널']?badge(r['시그널']):''} ${r['정비사업']?'<span class="pill">정비</span>':''}`,
-      right:psStatusBadge(r['상태'],r['Dday']),
-      sub:`${r['지역']||''} ${r['지역급지']?'· '+r['지역급지']+'급지':''} · ${r['주택구분']||''} · ${subAddr(r['주소'],r['지역'])}`}),
+      right:_mtMetric('청약', psStatusBadge(r['상태'],r['Dday'])),
+      sub:`${r['지역']||''}${_mtGradeTag(r['지역'])?' · '+_mtGradeTag(r['지역']):''} · ${r['주택구분']||''} · ${subAddr(r['주소'],r['지역'])}`}),
     detail:r=>{ const id='psd'+r['관리번호']; loadPsTypes(r['관리번호'],id);
       const sched=[r['청약접수시작'],r['청약접수마감']].filter(Boolean).join(' ~ ')||'–';
       return `<div class="kv"><span>접수 ${sched}</span>
@@ -2669,7 +2697,8 @@ function prefillRegion(r){ switchTab('auction'); openAdd(); document.getElementB
 function daysTo(d){ if(!d) return null; return Math.ceil((new Date(d) - new Date())/86400000); }
 
 function renderAuction(rows){
-  rows = rows.filter(r=>inFocus(r['region']||''));
+  renderMtFilter('aucMtFilter', ()=>loadAuction());
+  rows = rows.filter(r=>inFocus(r['region']||'') && _mtPass(r['region'], r['지역시그널']));
   const sz = document.getElementById('fSize').value, ag = document.getElementById('fAge').value;
   if(sz) rows = rows.filter(r=>{const a=r['전용면적']||0; return sz==='s'?a<=60:sz==='m'?(a>60&&a<=85):a>85;});
   if(ag) rows = rows.filter(r=>{ if(!r['건축년도']) return false; const y=2026-r['건축년도'];
@@ -2679,8 +2708,8 @@ function renderAuction(rows){
   mapSplit('auctionList','auctionMap',rows,{
     summary:r=>{ const dl=daysTo(r['입찰기일']);
       return {nm:`${r['단지명']||'–'} ${r['지역시그널']?badge(r['지역시그널']):''} ${r['목표달성']?'':'<span class="pill">목표미달</span>'}`,
-        right:`<b style="color:${r['시세차익률']>=0?'#16a34a':'#dc2626'}">${r['시세차익률']}%</b>`,
-        sub:`${r['region']||''} ${r['단지급지']?'· '+r['단지급지']+'급지':''} · 권장 ${won(r['권장입찰가'])} ${dl!=null?'· '+(dl<0?'기일지남':'D-'+dl):''}`}; },
+        right:_mtMetric('시세차익', `<b style="color:${r['시세차익률']>=0?'#16a34a':'#dc2626'}">${r['시세차익률']}%</b>`),
+        sub:`${r['region']||''}${_mtGradeTag(r['region'])?' · '+_mtGradeTag(r['region']):''} · 권장 ${won(r['권장입찰가'])} ${dl!=null?'· '+(dl<0?'기일지남':'D-'+dl):''}`}; },
     detail:r=>`<div class="kv">
       ${r['단지급지']?'<span>'+gradeBadge(r['단지급지'],r['급지상위'])+'</span>':''}
       <span>평형 ${r['전용면적']?Math.round(r['전용면적'])+'㎡('+(r['전용면적']/3.3058).toFixed(0)+'평)':'–'}</span>
