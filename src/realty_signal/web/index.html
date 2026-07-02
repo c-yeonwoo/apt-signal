@@ -1411,11 +1411,12 @@ function renderAllListings(){
   mapSplit('laList','laMap',rows,{
     summary:x=>({nm:`${x['단지명']||'–'} ${typeBadge(x['유형'])} ${x['시그널']?badge(x['시그널']):''}`,
       right:_mtMetric(x['지표라벨'], `<b>${x['지표값']??'–'}${x['지표단위']||''}</b>`),
-      sub:`${x['지역']||''}${_mtGradeTag(x['지역'])?' · '+_mtGradeTag(x['지역']):''} · 기회도 <b style="color:var(--accent)">${x['기회도']??'–'}</b>`}),
+      sub:`${x['지역']||''}${_mtGradeTag(x['지역'])?' · '+_mtGradeTag(x['지역']):''} · <span title="${(x['기회도근거']||'').replace(/"/g,'')}">기회도 <b style="color:var(--accent)">${x['기회도']??'–'}</b></span>`}),
     detail:x=>{ const acts = x['유형']==='청약'
         ? `<span class="btn" style="padding:4px 10px;font-size:12px" onclick="switchTab('presale')">청약 상세 →</span>`
         : cxBtn(x['단지명'], x['지역']);
-      return `<div class="kv"><span>유형 ${x['유형']}</span><span>${x['지표라벨']} <b>${x['지표값']??'–'}${x['지표단위']||''}</b></span><span>기회도 <b>${x['기회도']??'–'}</b></span></div><div style="margin-top:7px">${acts}</div>`; },
+      return `<div class="kv"><span>유형 ${x['유형']}</span><span>${x['지표라벨']} <b>${x['지표값']??'–'}${x['지표단위']||''}</b></span><span>기회도 <b>${x['기회도']??'–'}</b></span></div>
+        ${x['기회도근거']?`<div style="font-size:11px;color:var(--dim);margin-top:5px">기회도 근거: ${x['기회도근거']}</div>`:''}<div style="margin-top:7px">${acts}</div>`; },
     coord:x=>(x['lat']&&x['lng'])?[x['lat'],x['lng']]:null,
     geoq:x=>`${x['지역']||''} ${x['단지명']||''}`,
     regionOf:x=>x['지역'],
