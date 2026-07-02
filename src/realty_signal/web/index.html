@@ -39,6 +39,11 @@
     border:none; border-radius:999px; padding:13px 22px; font-size:14px; font-weight:700; cursor:pointer;
     box-shadow:0 6px 18px rgba(37,99,235,.4); display:none; }
   #cmpFab:hover { filter:brightness(1.05); }
+  /* 지도 오버레이 컨트롤(급지/규제/끄기) */
+  .ov-ctl { display:flex; background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.18); }
+  .ov-ctl button { border:none; border-right:1px solid var(--line); background:var(--panel); color:var(--dim); font-size:11px; font-weight:600; padding:5px 9px; cursor:pointer; }
+  .ov-ctl button:last-child { border-right:none; }
+  .ov-ctl button.on { background:var(--accent); color:#fff; }
   .filterbar { display:flex; gap:14px; align-items:center; flex-wrap:wrap;
     background:#fff; border:1px solid var(--line); border-radius:10px; padding:11px 14px; margin-bottom:14px; }
   .filterbar label { font-size:13px; color:var(--dim); display:flex; align-items:center; gap:7px; white-space:nowrap; }
@@ -778,7 +783,6 @@
       <div id="mmSearchRes" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);max-height:300px;overflow:auto;z-index:800"></div>
     </div>
     <button class="chip" onclick="openFavList()" title="관심지역·관심단지 목록">관심목록</button>
-    <button class="chip" id="mmGradeBtn" onclick="toggleMyGrade()" title="지역 급지색 오버레이">급지색</button>
     <button class="chip" onclick="mmClearSearch()" title="검색 핀·측정선 지우기">초기화</button>
   </div>
   <div style="display:flex;gap:12px;flex-wrap:wrap">
@@ -1352,11 +1356,61 @@ function _mapTile(){
     return L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${_mapCfg.vworld}/Base/{z}/{y}/{x}.png`,{maxZoom:19});
   return L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:20,attribution:'© OpenStreetMap © CARTO'});
 }
+// ===== 지도 오버레이(급지색 · 규제지역) — 모든 지도 공용, 배타적 선택 =====
+// 규제지역: 국토부 지정(참고용, 시군구 근사). 토허제는 실제 동/구역 단위 — 여기선 구 단위 표기.
+const _REGULATION = { asof:'2025 기준(참고용·국토부 확인)', map:{
+  '강남구':['투기과열지구','조정대상지역','토지거래허가구역'],
+  '서초구':['투기과열지구','조정대상지역','토지거래허가구역'],
+  '송파구':['투기과열지구','조정대상지역','토지거래허가구역'],
+  '용산구':['투기과열지구','조정대상지역','토지거래허가구역'],
+  '양천구':['토지거래허가구역'], '영등포구':['토지거래허가구역'], '성동구':['토지거래허가구역'],
+}};
+const _REG_COLOR={투기과열지구:'#dc2626', 조정대상지역:'#ea580c', 토지거래허가구역:'#7c3aed'};
+function _regPrimary(t){ for(const k of ['투기과열지구','조정대상지역','토지거래허가구역']) if(t.includes(k)) return k; return null; }
+const _onorm=s=>(s||'').replace(/\s/g,'');
+function _gradeLut(){ const m={}; (allSignals||[]).forEach(s=>{ if(s['급지']) m[_onorm(s.region)]=s['급지']; }); return m; }
+async function _ensureGeo(){ if(!_uvGeo){ try{ _uvGeo=await (await fetch('/sudo_gu.geojson')).json(); }catch(e){} } return _uvGeo; }
+function _choStyle(mode, name, gl){
+  if(mode==='grade'){ const g=gl[_onorm(name)], gd=g&&_REGION_GRADE[g];
+    return {color:'#fff',weight:1,fillColor:gd?gd.col:'#e2e8f0',fillOpacity:gd?0.5:0.12}; }
+  const t=_REGULATION.map[name], c=t?_REG_COLOR[_regPrimary(t)]:null;
+  return {color:'#fff',weight:1,fillColor:c||'#e2e8f0',fillOpacity:c?0.5:0.08};
+}
+function _choTip(mode, name, gl){
+  if(mode==='grade'){ const g=gl[_onorm(name)]; return name+(g&&_REGION_GRADE[g]?' · '+_REGION_GRADE[g].label:''); }
+  const t=_REGULATION.map[name]; return name+(t?' · '+t.join(', '):' · 규제 없음');
+}
+async function setOverlay(map, mode, onClick){
+  if(!map) return;
+  if(map._ovLayer){ map._ovLayer.remove(); map._ovLayer=null; }
+  map._ovMode=mode;
+  if(!mode) return;
+  await _ensureGeo(); if(!_uvGeo) return;
+  const gl=_gradeLut();
+  map._ovLayer=L.geoJSON(_uvGeo,{ pane:'tilePane',
+    style:f=>_choStyle(mode,f.properties.name,gl),
+    onEachFeature:(f,l)=>{ l.bindTooltip(_choTip(mode,f.properties.name,gl),{sticky:true});
+      if(onClick) l.on('click',()=>onClick(f.properties.name)); }
+  }).addTo(map);
+}
+function attachOverlayControl(map, initial, onClick){
+  const ctl=L.control({position:'topright'});
+  ctl.onAdd=function(){ const d=L.DomUtil.create('div','ov-ctl');
+    d.innerHTML='<button data-m="grade">급지색</button><button data-m="reg">규제</button><button data-m="">끄기</button>';
+    L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+    d.querySelectorAll('button').forEach(b=>{ if((b.dataset.m||null)===(initial||null)) b.classList.add('on');
+      b.onclick=()=>{ setOverlay(map, b.dataset.m||null, onClick);
+        d.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b)); }; });
+    return d; };
+  ctl.addTo(map);
+  setOverlay(map, initial||null, onClick);
+}
 function initMap(mapId){
   let st=_ms[mapId];
   if(!st){ const map=L.map(mapId,{scrollWheelZoom:true,zoomControl:true});
     _mapTile().addTo(map);
     map.setView([37.55,126.99],11);
+    attachOverlayControl(map, null);   // 급지색·규제 오버레이 컨트롤(기본 꺼짐)
     st=_ms[mapId]={map,markers:{},sel:null}; }
   return st;
 }
@@ -1677,32 +1731,17 @@ async function loadUndervalued(){
 let uvMap=null, uvGeoLayer=null, _uvGeo=null;
 async function drawUvMap(){
   const el=document.getElementById('uvMap'); if(!el || typeof L==='undefined') return;
+  const onClick=r=>{ if(window._uv&&window._uv[r]) showUvHaesol(r); };
   if(!uvMap){
     uvMap=L.map(el,{attributionControl:false, scrollWheelZoom:false}).setView([37.45,127.0],9);
     _mapTile().addTo(uvMap);
-  }
-  if(!_uvGeo){ try{ _uvGeo=await (await fetch('/sudo_gu.geojson')).json(); }catch(e){ return; } }
+    attachOverlayControl(uvMap, 'grade', onClick);   // 기본 급지색, 규제로 전환 가능
+  } else { setOverlay(uvMap, uvMap._ovMode||'grade', onClick); }
   const G=(typeof _REGION_GRADE!=='undefined')?_REGION_GRADE:{};
-  const norm=s=>(s||'').replace(/\s/g,'');
-  const lut={};
-  (allSignals||[]).forEach(s=>{ if(s['급지']) lut[norm(s.region)]={g:s['급지'],region:s.region}; });
-  (_uvList||[]).forEach(r=>{ lut[norm(r.region)]={g:r['급지'],price:r.price,uv:r['저평가도'],region:r.region}; });
-  if(uvGeoLayer) uvGeoLayer.remove();
-  uvGeoLayer=L.geoJSON(_uvGeo,{
-    style:f=>{ const m=lut[norm(f.properties.name)], gd=m&&G[m.g];
-      return {color:'#ffffff', weight:1, fillColor: gd?gd.col:'#e2e8f0', fillOpacity: gd?0.62:0.22}; },
-    onEachFeature:(f,layer)=>{ const m=lut[norm(f.properties.name)], gd=m&&G[m.g];
-      layer.bindTooltip(`<b>${f.properties.name}</b>`
-        + (gd?` · <span style="color:${gd.col};font-weight:700">${gd.label}</span>`:' · 데이터 없음')
-        + (m&&m.price?`<br>평단 ${won(m.price)}/평${m.uv!=null?` · 저평가 ${m.uv>0?'+':''}${m.uv}%`:''}`:''), {sticky:true});
-      layer.on('click',()=>{ if(m&&m.region&&window._uv&&window._uv[m.region]) showUvHaesol(m.region); });
-      layer.on('mouseover',()=>layer.setStyle({weight:2.5,color:'#334155'}));
-      layer.on('mouseout',()=>layer.setStyle({weight:1,color:'#ffffff'}));
-    }
-  }).addTo(uvMap);
   const lg=document.getElementById('uvMapLegend');
-  if(lg) lg.innerHTML='<b>급지</b><br>'+['A','B','C','D'].map(g=>{const gd=G[g];
-    return `<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:12px;height:12px;background:${gd.col};display:inline-block;border-radius:2px"></span>${gd.label}</span>`;}).join('<br>');
+  if(lg) lg.innerHTML='<b style="font-size:11px">급지</b> '
+    + ['A','B','C','D'].map(g=>`<span style="display:inline-flex;align-items:center;gap:3px"><span style="width:10px;height:10px;background:${G[g].col};display:inline-block;border-radius:2px"></span>${G[g].label}</span>`).join(' ')
+    + '<br><b style="font-size:11px">규제</b> <span style="color:#dc2626">투기과열</span>·<span style="color:#ea580c">조정</span>·<span style="color:#7c3aed">토허</span>';
   setTimeout(()=>uvMap.invalidateSize(),90);
 }
 let _uvGradeStats={};
@@ -2733,7 +2772,7 @@ function _haversineKm(a,b){ const R=6371,d=x=>x*Math.PI/180;
   const dLat=d(b[0]-a[0]), dLng=d(b[1]-a[1]);
   const s=Math.sin(dLat/2)**2 + Math.cos(d(a[0]))*Math.cos(d(b[0]))*Math.sin(dLng/2)**2;
   return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s)); }
-let _myGradeLayer=null, _showMyGrade=false, _myLine=null, _mySearchList=[], _cxFindT2=null;
+let _myLine=null, _mySearchList=[], _cxFindT2=null;
 const _MMICON={home:'🏠',region:'📍',complex:'🏢',search:'🔎'};
 function _pinIcon(color, sel){
   return L.divIcon({className:'', html:`<div class="mappin${sel?' sel':''}" style="background:${color}"></div>`,
@@ -2750,6 +2789,7 @@ async function drawMyMap(){
   if(!myMap){
     myMap=L.map(el,{attributionControl:false, scrollWheelZoom:true}).setView([37.55,127.0],10);
     _mapTile().addTo(myMap);
+    attachOverlayControl(myMap, null);   // 급지색·규제 오버레이 컨트롤
   }
   setTimeout(()=>myMap.invalidateSize(),90);
   const sm={}; (allSignals||[]).forEach(s=>sm[s.region]=s);
@@ -2785,27 +2825,7 @@ async function drawMyMap(){
   document.getElementById('myMapInfo').innerHTML = '';
   updateCmpChip();
   renderCompareTable();
-  if(_showMyGrade) await drawMyGradeLayer();
   if(pts.length){ const g=L.featureGroup(_myMarkers); myMap.fitBounds(g.getBounds().pad(0.25)); }
-}
-// 급지색 오버레이(수도권 choropleth) 토글
-async function drawMyGradeLayer(){
-  if(!_uvGeo){ try{ _uvGeo=await (await fetch('/sudo_gu.geojson')).json(); }catch(e){ return; } }
-  const G=(typeof _REGION_GRADE!=='undefined')?_REGION_GRADE:{};
-  const norm=s=>(s||'').replace(/\s/g,'');
-  const lut={}; (allSignals||[]).forEach(s=>{ if(s['급지']) lut[norm(s.region)]=s['급지']; });
-  if(_myGradeLayer) _myGradeLayer.remove();
-  _myGradeLayer=L.geoJSON(_uvGeo,{ pane:'tilePane',
-    style:f=>{ const g=lut[norm(f.properties.name)], gd=g&&G[g];
-      return {color:'#ffffff',weight:1,fillColor:gd?gd.col:'#e2e8f0',fillOpacity:gd?0.42:0.12}; },
-    onEachFeature:(f,layer)=>{ const g=lut[norm(f.properties.name)], gd=g&&G[g];
-      layer.bindTooltip(`${f.properties.name}${gd?' · '+gd.label:''}`,{sticky:true}); }
-  }).addTo(myMap);
-}
-function toggleMyGrade(){
-  _showMyGrade=!_showMyGrade;
-  document.getElementById('mmGradeBtn').classList.toggle('on', _showMyGrade);
-  if(_showMyGrade) drawMyGradeLayer(); else if(_myGradeLayer){ _myGradeLayer.remove(); _myGradeLayer=null; }
 }
 // 단지 검색 → 지도에 핀 추가(내장)
 function mmSearchDeb(){ clearTimeout(_cxFindT2); _cxFindT2=setTimeout(mmDoSearch,350); }
