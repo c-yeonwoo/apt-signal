@@ -1028,8 +1028,21 @@ def redev_value_calc(current_price: float, pyeong: float, presale_pyeong_price: 
     return rd.value_calc(current_price, pyeong, presale_pyeong_price, contribution, hold_months)
 
 
+@lru_cache(maxsize=1)
+def _bundled_centroids() -> dict:
+    """레포에 번들된 수도권 시군구 중심좌표 — 라이브 지오코딩(Nominatim 1req/s·DC IP 차단) 회피."""
+    p = Path(__file__).parent / "region_centroids.json"
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def _region_centroid(region: str, code: str) -> tuple[float, float] | None:
-    """시군구 중심좌표 (SQLite db.region_geo 캐시)."""
+    """시군구 중심좌표 — 번들 → DB 캐시 → (최후) 라이브 지오코딩."""
+    b = _bundled_centroids().get(region)
+    if b:
+        return tuple(b)
     from realty_signal import db
     cached = db.region_get(region)
     if cached:
