@@ -708,7 +708,7 @@ def _redev_zones():
     cached = db.kv_get("redev_zones", max_age=90 * 86400)
     if cached is not None:
         return cached
-    from realty_signal.ingest import redevelopment as rd
+    from realty_signal.ingest import redev as rd
     config.load_env()
     key = config.seoul_key()
     zones = rd.fetch_zones(key) if key else []
@@ -717,7 +717,7 @@ def _redev_zones():
     return zones
 
 
-@app.get("/api/redevelopment/zones")
+@app.get("/api/redev/zones")
 def redev_zones(type: str | None = None, q: str | None = None):
     """정비구역 목록. type=재건축/재개발/..., q=위치·구역명 검색."""
     zones = _redev_zones()
@@ -737,7 +737,7 @@ def _redev_candidates(region: str):
     cached = db.kv_get(f"redev_cand:{region}", max_age=30 * 86400)
     if cached is not None:
         return cached
-    from realty_signal.ingest import redevelopment as rd
+    from realty_signal.ingest import redev as rd
     code = _kb().codes.get(region, "")
     if not (code and code.isdigit() and code[2:5] != "000"):
         return []
@@ -747,7 +747,7 @@ def _redev_candidates(region: str):
     return cands
 
 
-@app.get("/api/redevelopment/candidates/{region}")
+@app.get("/api/redev/candidates/{region}")
 def redev_candidates(region: str):
     """지역 내 재건축 잠재력 단지 랭킹 (구축, 연식·용적률·세대수·시세 기반)."""
     sig = _signal_map()
@@ -761,7 +761,7 @@ def db_has_redev_cache(region: str) -> bool:
     return db.kv_get(f"redev_cand:{region}", max_age=30 * 86400) is not None
 
 
-@app.post("/api/redevelopment/warm")
+@app.post("/api/redev/warm")
 def redev_warm(data: dict = Body(default={})):
     """비개인화 재건축 데이터 사전 계산 — 지정 지역(없으면 BUY+ 지역)을 DB에 적재.
 
@@ -790,7 +790,7 @@ def redev_warm(data: dict = Body(default={})):
 def _redev_progress():
     """정비사업 추진경과(≈3만행) — SQLite(db.redev_progress) 우선, 없으면 수집·적재."""
     from realty_signal import db
-    from realty_signal.ingest import redevelopment as rd
+    from realty_signal.ingest import redev as rd
     if db.redev_count() > 0:
         return db.redev_rows()
     config.load_env()
@@ -801,10 +801,10 @@ def _redev_progress():
     return rows
 
 
-@app.get("/api/redevelopment/stages")
+@app.get("/api/redev/stages")
 def redev_stages(region: str | None = None):
     """정비사업 단계 현황 — 시군구별 현 단계 분포 + 단계 평균 소요기간."""
-    from realty_signal.ingest import redevelopment as rd
+    from realty_signal.ingest import redev as rd
     sgg5 = None
     if region:
         code = _kb().codes.get(region, "")
@@ -847,11 +847,11 @@ def transit_ep(sx: float, sy: float, ex: float, ey: float):
     return out
 
 
-@app.get("/api/redevelopment/value-calc")
+@app.get("/api/redev/value-calc")
 def redev_value_calc(current_price: float, pyeong: float, presale_pyeong_price: float,
                      contribution: float, hold_months: int = 60):
     """재건축 가치 계산 — 현재가·평형·예상분양평단가·분담금 → ROI."""
-    from realty_signal.ingest import redevelopment as rd
+    from realty_signal.ingest import redev as rd
     return rd.value_calc(current_price, pyeong, presale_pyeong_price, contribution, hold_months)
 
 
